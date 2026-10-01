@@ -1,32 +1,24 @@
 import "server-only";
 
-import { cert, getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
+import { type Auth, type DecodedIdToken } from "firebase-admin/auth";
 import { cookies } from "next/headers";
 import {
   recentAuthenticationWindowMilliseconds,
   sessionCookieName,
   sessionInactivityWindowMilliseconds,
 } from "./session-policy";
+import { getFirebaseAdministrationAuthentication } from "./firebase-admin-application";
 
 export type AuthenticatedSessionUser = Pick<DecodedIdToken, "uid" | "email" | "name" | "picture">;
 
 function getServerAuthentication(): Auth {
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-  if (!projectId || !clientEmail || !privateKey) {
+  try {
+    return getFirebaseAdministrationAuthentication();
+  } catch {
     throw new AuthenticationInfrastructureError(
-      "Firebase Admin credentials are missing. Set FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY before enabling protected routes.",
+      "Firebase Admin could not initialize. Use the Cloud Run runtime service account in production or configure local Application Default Credentials.",
     );
   }
-
-  const administrationApplication = getApps().length > 0
-    ? getApp()
-    : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-
-  return getAuth(administrationApplication);
 }
 
 export async function getAuthenticatedSessionUser(): Promise<AuthenticatedSessionUser | null> {

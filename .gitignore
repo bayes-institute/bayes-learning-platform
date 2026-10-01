@@ -1,23 +1,31 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
+# Client build output and dependencies
+client/node_modules/
+client/.next/
+client/out/
+client/*.tsbuildinfo
+client/next-env.d.ts
 
-# Next.js
+# Python environments and build output
+server/.venv/
+server/.pytest_cache/
+server/**/__pycache__/
+server/**/*.py[cod]
+server/build/
+server/dist/
+
+# Local environment files in every service
+**/.env
+**/.env.*
+!**/.env.example
+docker-compose.credentials.yml
+
+# Root-generated output retained only while migrating the old layout
 /.next/
+/node_modules/
 /out/
+/.local-dev/
 
-# build output
-/build
-/dist
-
-# local environment
-.env*
-!.env.example
-
-# tooling
+# Tooling and operating-system files
 .vscode/
-*.tsbuildinfo
-next-env.d.ts
 .DS_Store
 Thumbs.db

@@ -1,59 +1,59 @@
 # Bayes Learning Platform
 
-A Next.js App Router learning platform with Firebase Authentication, a server-verified learning area, and the Bayes Institute design system.
+The repository is organized around three human-facing areas:
 
-## Getting started
+| Folder | Responsibility |
+| --- | --- |
+| [client](client/README.md) | Next.js learner experience, Firebase browser sign-in, and same-origin HttpOnly session cookies used for protected server-rendered pages. |
+| [server](server/README.md) | FastAPI business API, Firebase bearer-token verification, authorization, and future privileged operations. |
+| [planning](planning/README.md) | Architecture decisions, data-model scratchpads, and deployment runbooks. |
 
-Requires Node.js 20.9 or newer.
+## Authentication ownership
 
-Copy `.env.example` to `.env.local`, then set `NEXT_PUBLIC_SITE_URL` to the public site origin. Protected routes also require a Firebase service account: set `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, and `FIREBASE_ADMIN_PRIVATE_KEY`. These are server-only secrets; never prefix them with `NEXT_PUBLIC_` or commit them.
+Firebase Authentication issues identity. Client owns interactive browser sign-in and its own secure session cookie because a cookie scoped to the client origin is what lets Next protect server-rendered routes. Server never trusts a user ID or role sent by the browser: it verifies the Firebase bearer token and derives the identity from the verified claims for every protected API operation.
 
-The application is no longer a static export. Deploy it to a Node-capable Next.js host (for example Vercel, Cloud Run, or a Node server) so `/learn` and `/api/auth/session` can verify sessions on the server.
+Firestore may be read directly by the browser only where Firestore Security Rules are the access-control authority. FastAPI owns privileged mutations, authorization decisions, grading, publishing, entitlements, payment webhooks, and media signing. This keeps ordinary client reads from becoming unnecessary server work.
 
-```bash
-npm install
-npm run dev
+## Local development
+
+### Run without Docker
+
+Docker is optional for local development. Install Node.js 20.9 or newer and Python 3.10 or newer, then install the two services' dependencies once:
+
+```sh
+cd client && npm ci
+cd ../server && python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Available checks and production commands:
+On Windows, create the server environment with `py -3 -m venv .venv` and install with `.venv\Scripts\python.exe -m pip install -r requirements.txt` from the `server` directory.
 
-```bash
-npm run lint
-npm run typecheck
-npm run build
-npm start
+Start both services from the repository root:
+
+```sh
+bash scripts/start-dev.sh       # Linux
+powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1  # Windows PowerShell
 ```
 
-## Authentication and session model
+The scripts create `client/.env.local` and `server/.env` from their examples when missing, check dependencies and ports, start the client and API, and wait for both `/health` routes. Add Firebase browser settings to `client/.env.local` to use sign-in. If port 3000 or 8000 is occupied, the script shows the owning process and asks before stopping it. Press Ctrl+C to stop both services. On Windows, service output is written to the ignored `.local-dev` folder.
 
-`/` and the marketing site are public. `/learn` is rendered only after Firebase Admin verifies the `bayes_session` cookie. If a visitor requests it without a valid session, Next.js redirects them to `/auth/sign-in?returnTo=/learn`.
+### Run with Docker Compose
 
-Firebase's browser SDK is explicitly configured with local persistence, so an active learner does not repeatedly see a sign-in prompt. After an interactive Google or GitHub sign-in, the client exchanges its Firebase ID token for a signed, `HttpOnly`, `Secure` (in production), `SameSite=Lax` cookie. The cookie is not accessible to JavaScript.
+1. Copy client/.env.example to client/.env.local and server/.env.example to server/.env.
+2. Configure Firebase browser values in client/.env.local.
+3. Set the allowed origin in server/.env to http://localhost:3000.
+4. To start the health routes and browser-facing UI, run:
 
-The cookie has a rolling 14-day inactivity limit. The browser renews it only after genuine interaction and at most once every ten minutes; a background Firebase token refresh alone cannot keep it alive. Once the cookie has expired, an older persisted browser identity cannot silently create a new server session: a fresh provider sign-in is required.
+   docker compose --env-file client/.env.local up --build
 
-All future protected server pages and route handlers should call `getAuthenticatedSessionUser()` before loading learner-specific data. UI state from `useAuthentication()` is helpful for navigation, but it is not an access-control boundary.
+5. For protected Docker calls using a service-account JSON file, copy docker-compose.credentials.example.yml to docker-compose.credentials.yml, set FIREBASE_ADMIN_CREDENTIALS_FILE in client/.env.local to the absolute host path of that ignored file, then run:
 
-## Project structure
+   docker compose --env-file client/.env.local -f docker-compose.yml -f docker-compose.credentials.yml up --build
 
-- `features/authentication/` contains browser identity, server session verification, session policy, provider state, and authentication UI. Each concern has one clear home instead of a catch-all utility folder.
-- `features/analytics/` starts Firebase Analytics only in the browser.
+Client is available at http://localhost:3000, server at http://localhost:8000, and both liveness endpoints are available at /health without authentication. The optional credential overlay is not needed for a health-only start.
 
-- `app/` — App Router layout, home page, and global styling.
-- `public/assets/` — the provided asset library, copied with its original folders and files intact.
-- `app/globals.css` — design tokens, Tailwind theme bridge, accessible base styles, and the starter page styles.
+For deployment, start with [the Cloud Run client/server runbook](planning/01_CLOUD_RUN_CLIENT_SERVER_DEPLOYMENT.md).
 
-## Design system
-
-The global stylesheet is the source of truth for the visual foundation. It carries the original burgundy and verdigris color scales, porcelain and ink neutrals, semantic status colors, semantic surface/action/text/border/focus tokens, typography, spacing, radius, and floating shadow values.
-
-- **Display:** EB Garamond, used for expressive headings and selected editorial moments.
-- **Interface:** IBM Plex Sans, used for body copy, navigation, labels, and controls.
-- **Brand:** Oxblood burgundy `#5B0F1A` is the primary action and emphasis color; verdigris `#155F5A` is a supporting accent.
-- **Canvas:** Porcelain `#FFFEFA`, with white surfaces and a warm subtle neutral `#F8F4ED`.
-- **Layout:** Editorial asymmetry, generous whitespace, flat surfaces, restrained borders, and small corner radii.
-- **Accessibility:** Visible oxblood focus ring, semantic status tokens, responsive layouts, and reduced-motion handling.
-
-The palette, typography, and space scales are exposed as CSS custom properties and Tailwind v4 theme utilities. Add product components against semantic tokens so the interface remains consistent as it grows.
-
-The landing page is deliberately compact and content-led. Learning paths, lesson content, quizzes, progress tracking, and gamification can be added as the product model takes shape.
+The repository now includes GitHub Actions CI at .github/workflows/ci.yml.
+The production deployment workflow remains intentionally documented rather than
+activated until the Google Cloud project, runtime accounts, and GitHub OIDC
+trust in the runbook have been created.
