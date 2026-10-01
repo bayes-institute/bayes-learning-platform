@@ -1,0 +1,2 @@
+.homeLink { position: fixed; z-index: 2; top: 24px; left: clamp(20px, 4vw, 48px); color: var(--burgundy-600); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-decoration: none; }
+.homeLink:hover { text-decoration: underline; }

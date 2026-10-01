@@ -1,0 +1,15 @@
+.page { min-height: 100dvh; background: var(--background-canvas); }
+.shell { padding-bottom: clamp(48px, 9vw, 120px); }
+.header { display: flex; height: 88px; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--border-default); }
+.header img { width: min(170px, 44vw); }
+.introduction { max-width: 750px; padding-block: clamp(80px, 13vw, 170px) clamp(48px, 8vw, 100px); }
+.introduction :global(.eyebrow) { margin-bottom: 18px; }
+.introduction h1 { max-width: 12ch; margin-bottom: 22px; font-size: clamp(4rem, 9vw, 8rem); }
+.introduction h1 em { color: var(--burgundy-600); font-weight: 400; }
+.introduction > p:last-child { max-width: 48ch; margin: 0; color: var(--text-secondary); font-size: 16px; line-height: 1.75; }
+.placeholder { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 6vw, 80px); padding: clamp(28px, 5vw, 56px); border: 1px solid var(--border-default); background: var(--background-surface); }
+.index { margin: 0; color: var(--burgundy-600); font-size: 11px; font-weight: 700; letter-spacing: .15em; }
+.placeholder :global(.eyebrow) { margin-bottom: 12px; }
+.placeholder h2 { margin-bottom: 10px; font-family: var(--font-display); font-size: clamp(2.2rem, 4vw, 3.8rem); font-weight: 400; line-height: .95; }
+.placeholder > div > p:last-child { max-width: 53ch; margin: 0; color: var(--text-secondary); line-height: 1.65; }
+@media (max-width: 620px) { .header { height: 72px; } .introduction { padding-block: 72px 60px; } .placeholder { grid-template-columns: 1fr; gap: 28px; } }

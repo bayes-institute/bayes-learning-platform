@@ -1,0 +1,6 @@
+.page { display: grid; min-height: 100dvh; place-items: center; padding: 28px; background: var(--background-subtle); }
+.content { width: min(100%, 700px); padding: clamp(36px, 8vw, 88px); border: 1px solid var(--border-default); background: var(--background-canvas); }
+.content :global(.eyebrow) { margin-bottom: 18px; }
+.content h1 { max-width: 10ch; margin-bottom: 22px; font-size: clamp(4rem, 10vw, 8rem); }
+.content h1 em { color: var(--burgundy-600); font-weight: 400; }
+.content > p { max-width: 40ch; margin-bottom: 30px; color: var(--text-secondary); line-height: 1.7; }

@@ -1,12 +1,14 @@
 # Bayes Learning Platform
 
-A Next.js App Router scaffold for a content-led learning platform. It includes TypeScript, Tailwind CSS v4, ESLint, and Turbopack, with the Bayes Institute brand system established as global CSS tokens.
+A Next.js App Router learning platform with Firebase Authentication, a server-verified learning area, and the Bayes Institute design system.
 
 ## Getting started
 
 Requires Node.js 20.9 or newer.
 
-Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SITE_URL` to the public site origin before deploying, so social preview URLs use the deployed domain.
+Copy `.env.example` to `.env.local`, then set `NEXT_PUBLIC_SITE_URL` to the public site origin. Protected routes also require a Firebase service account: set `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, and `FIREBASE_ADMIN_PRIVATE_KEY`. These are server-only secrets; never prefix them with `NEXT_PUBLIC_` or commit them.
+
+The application is no longer a static export. Deploy it to a Node-capable Next.js host (for example Vercel, Cloud Run, or a Node server) so `/learn` and `/api/auth/session` can verify sessions on the server.
 
 ```bash
 npm install
@@ -22,7 +24,20 @@ npm run build
 npm start
 ```
 
+## Authentication and session model
+
+`/` and the marketing site are public. `/learn` is rendered only after Firebase Admin verifies the `bayes_session` cookie. If a visitor requests it without a valid session, Next.js redirects them to `/auth/sign-in?returnTo=/learn`.
+
+Firebase's browser SDK is explicitly configured with local persistence, so an active learner does not repeatedly see a sign-in prompt. After an interactive Google or GitHub sign-in, the client exchanges its Firebase ID token for a signed, `HttpOnly`, `Secure` (in production), `SameSite=Lax` cookie. The cookie is not accessible to JavaScript.
+
+The cookie has a rolling 14-day inactivity limit. The browser renews it only after genuine interaction and at most once every ten minutes; a background Firebase token refresh alone cannot keep it alive. Once the cookie has expired, an older persisted browser identity cannot silently create a new server session: a fresh provider sign-in is required.
+
+All future protected server pages and route handlers should call `getAuthenticatedSessionUser()` before loading learner-specific data. UI state from `useAuthentication()` is helpful for navigation, but it is not an access-control boundary.
+
 ## Project structure
+
+- `features/authentication/` contains browser identity, server session verification, session policy, provider state, and authentication UI. Each concern has one clear home instead of a catch-all utility folder.
+- `features/analytics/` starts Firebase Analytics only in the browser.
 
 - `app/` — App Router layout, home page, and global styling.
 - `public/assets/` — the provided asset library, copied with its original folders and files intact.

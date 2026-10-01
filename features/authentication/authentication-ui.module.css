@@ -1,0 +1,19 @@
+.loadingPlaceholder { width: 75px; min-height: 40px; border: 1px solid var(--border-subtle); border-radius: var(--radius-control); background: var(--porcelain-deep); }
+.signInLink { cursor: pointer; }
+.userMenu { position: relative; display: inline-flex; }
+.userTrigger { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; padding: 4px 12px 4px 5px; border: 1px solid var(--border-default); border-radius: 999px; background: var(--background-surface); color: var(--text-primary); cursor: pointer; font-size: 12px; font-weight: 600; transition: border-color 160ms ease, background 160ms ease; }
+.userTrigger:hover { border-color: var(--burgundy-600); background: var(--porcelain-deep); }
+.avatar { border-radius: 50%; object-fit: cover; }
+.initial { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; background: var(--burgundy-100); color: var(--burgundy-700); font-size: 11px; font-weight: 700; }
+.userName { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caret { margin-left: 2px; color: var(--text-secondary); font-size: 10px; }
+.menu { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; min-width: 220px; padding: 14px; border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--background-surface); box-shadow: var(--shadow-floating); animation: menuEnter 120ms ease; }
+.menuName, .menuEmail { margin: 0; }
+.menuName { color: var(--text-primary); font-size: 13px; font-weight: 600; }
+.menuEmail { overflow-wrap: anywhere; color: var(--text-secondary); font-size: 11px; }
+.divider { height: 1px; margin: 10px -14px; background: var(--border-subtle); }
+.menuLink, .signOutButton { display: block; width: 100%; padding: 6px 4px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text-primary); cursor: pointer; font-size: 12px; font-weight: 600; text-align: left; text-decoration: none; }
+.menuLink:hover { color: var(--burgundy-600); background: var(--porcelain-deep); }
+.signOutButton { margin-top: 3px; color: var(--danger); }
+.signOutButton:hover { background: var(--danger-soft); }
+@keyframes menuEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }

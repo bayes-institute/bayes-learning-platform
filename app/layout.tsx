@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { EB_Garamond, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
-import FirebaseAnalytics from "@/components/FirebaseAnalytics";
-import { AuthProvider } from "@/context/AuthContext";
+import { FirebaseAnalytics } from "@/features/analytics/FirebaseAnalytics";
+import { AuthenticationProvider } from "@/features/authentication/AuthenticationProvider";
+import { SessionActivityKeeper } from "@/features/authentication/SessionActivityKeeper";
 
 const displayFont = EB_Garamond({
   variable: "--font-display",
@@ -68,7 +69,10 @@ export default function RootLayout({
     <html lang="en" className={`${displayFont.variable} ${interfaceFont.variable}`}>
       <body>
         <FirebaseAnalytics />
-        <AuthProvider>{children}</AuthProvider>
+        <AuthenticationProvider>
+          <SessionActivityKeeper />
+          {children}
+        </AuthenticationProvider>
       </body>
     </html>
   );

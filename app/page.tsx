@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import AuthButton from "@/components/AuthButton";
+import { AuthenticationControls } from "@/features/authentication/AuthenticationControls";
 
 const pathways = [
   {
@@ -45,8 +45,8 @@ export default function Home() {
             <Link href="#approach">Our approach</Link>
           </nav>
           <div className="masthead-actions-group">
-            <AuthButton />
-            <Link className="button button-outline masthead-action" href="#pathways">
+            <AuthenticationControls />
+            <Link className="button button-outline masthead-action" href="/learn">
               Start learning <span aria-hidden="true">↗</span>
             </Link>
           </div>
@@ -103,7 +103,7 @@ export default function Home() {
 
           <div className="pathway-list">
             {pathways.map((pathway) => (
-              <Link className="pathway" href="#pathways" key={pathway.number}>
+              <Link className="pathway" href="/learn" key={pathway.number}>
                 <span className={`pathway-mark ${pathway.tone}`} aria-hidden="true">
                   {pathway.number}
                 </span>

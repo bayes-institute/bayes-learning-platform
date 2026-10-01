@@ -1,0 +1,12 @@
+.page { display: grid; min-height: 100dvh; place-items: center; padding: 32px 20px; background: var(--background-subtle); }
+.card { width: min(100%, 460px); padding: clamp(30px, 6vw, 48px); border: 1px solid var(--border-default); border-radius: var(--radius-panel); background: var(--background-canvas); box-shadow: 0 18px 48px rgb(32 25 26 / 12%); }
+.emblem { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 24px; border: 1px solid var(--border-default); border-radius: 50%; background: var(--porcelain-deep); color: var(--burgundy-600); font-family: var(--font-display); font-size: 24px; }
+.card :global(.eyebrow) { margin-bottom: 13px; }
+.card h1 { max-width: 12ch; margin-bottom: 12px; font-size: clamp(3rem, 8vw, 4.4rem); }
+.introduction { margin-bottom: 26px; color: var(--text-secondary); line-height: 1.65; }
+.alert { margin: 0 0 18px; padding: 12px 14px; border: 1px solid rgb(180 35 50 / 25%); border-radius: var(--radius-control); background: var(--danger-soft); color: var(--danger); font-size: 13px; line-height: 1.5; }
+.providers { display: grid; gap: 12px; }
+.provider { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 12px; padding: 12px 18px; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-surface); color: var(--text-primary); cursor: pointer; font-size: 13px; font-weight: 600; transition: background 160ms ease, border-color 160ms ease, transform 160ms ease; }
+.provider:hover:not(:disabled) { border-color: var(--burgundy-600); background: var(--porcelain-deep); transform: translateY(-1px); }
+.provider:disabled { cursor: wait; opacity: .65; }
+.note { margin: 24px 0 0; border-top: 1px solid var(--border-subtle); padding-top: 18px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; text-align: center; }
