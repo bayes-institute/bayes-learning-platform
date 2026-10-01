@@ -25,7 +25,7 @@ cd client && npm ci
 cd ../server && python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt
 ```
 
-On Windows, create the server environment with `py -3 -m venv .venv` and install with `.venv\Scripts\python.exe -m pip install -r requirements.txt` from the `server` directory.
+On Windows, create the server environment with `python -m venv .venv` and install with `.venv\Scripts\python.exe -m pip install -r requirements.txt` from the `server` directory. If Python is available only through the Python Launcher, use a specific installed version such as `py -3.12 -m venv .venv`.
 
 Start both services from the repository root:
 

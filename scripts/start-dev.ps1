@@ -26,15 +26,37 @@ try {
     $nodeVersion = (& node -p 'process.versions.node').Trim()
     if ([version]$nodeVersion -lt [version]'20.9') { Fail "Node.js 20.9 or newer is required (found $nodeVersion)." }
 
-    $python = Get-Command py -ErrorAction SilentlyContinue
-    if ($python) { $PythonCommand = 'py'; $PythonPrefix = @('-3') }
-    else {
-        $python = Get-Command python -ErrorAction SilentlyContinue
-        if (-not $python) { Fail 'Python 3.10 or newer is required. Install Python, then rerun scripts\start-dev.ps1.' }
-        $PythonCommand = 'python'; $PythonPrefix = @()
+    # Python overrides can point at another installation and break stdlib lookup.
+    foreach ($variableName in @('PYTHONHOME', 'PYTHONPATH')) {
+        if (Test-Path "Env:$variableName") {
+            Write-Warning "Ignoring $variableName for this startup session so Python can find its standard library."
+            Remove-Item "Env:$variableName" -ErrorAction SilentlyContinue
+        }
     }
-    & $PythonCommand @PythonPrefix -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'
-    if ($LASTEXITCODE -ne 0) { Fail 'Python 3.10 or newer is required.' }
+
+    # Prefer the interpreter on PATH. `py -3` can select a broken newer
+    # installation even when a working supported Python is available on PATH.
+    $PythonCommand = $null
+    $PythonPrefix = @()
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if ($python) {
+        $null = & $python.Source -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>$null
+        if ($LASTEXITCODE -eq 0) { $PythonCommand = $python.Source }
+    }
+    if (-not $PythonCommand) {
+        $launcher = Get-Command py -ErrorAction SilentlyContinue
+        if ($launcher) {
+            foreach ($version in @('3.14', '3.13', '3.12', '3.11', '3.10')) {
+                $null = & $launcher.Source "-$version" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    $PythonCommand = $launcher.Source
+                    $PythonPrefix = @("-$version")
+                    break
+                }
+            }
+        }
+    }
+    if (-not $PythonCommand) { Fail 'Python 3.10 or newer is required. Install a working Python interpreter, then rerun scripts\start-dev.ps1.' }
 
     $clientEnv = Join-Path $ClientDir '.env.local'
     $serverEnv = Join-Path $ServerDir '.env'
@@ -49,7 +71,10 @@ try {
 
     if (-not (Test-Path (Join-Path $ClientDir 'node_modules\.bin\next.cmd'))) { Fail 'Client dependencies are missing. Run: cd client; npm ci' }
     $venvPython = Join-Path $ServerDir '.venv\Scripts\python.exe'
-    if (-not (Test-Path $venvPython)) { Fail 'Server virtual environment is missing. Run: cd server; py -3 -m venv .venv; .\.venv\Scripts\python.exe -m pip install -r requirements.txt' }
+    if (-not (Test-Path $venvPython)) {
+        $pythonSetupCommand = if ([IO.Path]::GetFileName($PythonCommand) -ieq 'py.exe') { "py $($PythonPrefix -join ' ')" } else { 'python' }
+        Fail "Server virtual environment is missing. Run from server: $pythonSetupCommand -m venv .venv; .\.venv\Scripts\python.exe -m pip install -r requirements.txt"
+    }
     & $venvPython -c 'import fastapi, uvicorn' *> $null
     if ($LASTEXITCODE -ne 0) { Fail 'Server Python dependencies are missing. Run: cd server; .\.venv\Scripts\python.exe -m pip install -r requirements.txt' }
 
