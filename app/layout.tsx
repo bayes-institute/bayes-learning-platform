@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { EB_Garamond, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
+import FirebaseAnalytics from "@/components/FirebaseAnalytics";
+import { AuthProvider } from "@/context/AuthContext";
 
 const displayFont = EB_Garamond({
   variable: "--font-display",
@@ -19,7 +21,7 @@ const interfaceFont = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://bayesinstitute.com"),
   title: {
     default: "Bayes Institute | Learn with clarity",
     template: "%s | Bayes Institute",
@@ -64,7 +66,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${displayFont.variable} ${interfaceFont.variable}`}>
-      <body>{children}</body>
+      <body>
+        <FirebaseAnalytics />
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

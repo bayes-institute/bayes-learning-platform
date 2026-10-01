@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import AuthButton from "@/components/AuthButton";
 
 const pathways = [
   {
@@ -43,9 +44,12 @@ export default function Home() {
             <Link href="#pathways">Explore</Link>
             <Link href="#approach">Our approach</Link>
           </nav>
-          <Link className="button button-outline masthead-action" href="#pathways">
-            Start learning <span aria-hidden="true">↗</span>
-          </Link>
+          <div className="masthead-actions-group">
+            <AuthButton />
+            <Link className="button button-outline masthead-action" href="#pathways">
+              Start learning <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
         </header>
 
         <section className="hero" aria-labelledby="hero-title">
