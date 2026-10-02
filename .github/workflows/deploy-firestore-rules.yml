@@ -20,6 +20,9 @@ env:
 
 jobs:
   deploy:
+    # workflow_dispatch permits selecting a ref, so retain the main-only
+    # deployment boundary even for a manually started run.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
 

@@ -2,15 +2,17 @@ name: CI
 
 on:
   pull_request:
-  push:
     branches: [main]
+  push:
+    branches: ["**"]
 
 permissions:
   contents: read
 
 jobs:
   client:
-    name: Client checks
+    # Keep this check name stable: it is suitable for a branch-protection rule.
+    name: client-validation
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,7 +30,8 @@ jobs:
       - run: npm run build
 
   server:
-    name: Server checks
+    # Keep this check name stable: it is suitable for a branch-protection rule.
+    name: server-test
     runs-on: ubuntu-latest
     defaults:
       run:
