@@ -360,19 +360,19 @@ Create the load balancer with these settings:
 | Name | `bayes-public-lb` |
 | Frontend | HTTPS, Premium tier, IPv4, port 443 |
 | Static IP | Reserve a new global IPv4 address named `bayes-public-ip` |
-| Certificate | New Google-managed certificate named `bayes-public-cert` for `bayesinstitute.com`, `www.bayesinstitute.com`, and `api.bayesinstitute.com` |
+| Certificate | Certificate Manager Google-managed certificate named `bayes-public-cert` for `bayesinstitute.com`, `www.bayesinstitute.com`, and `api.bayesinstitute.com`; add it to a global certificate map and attach that map to the HTTPS target proxy |
 | HTTP | Enable the built-in HTTP-to-HTTPS redirect on port 80 while creating the HTTPS frontend |
 | Default backend | `bayes-client-backend` |
 | Host rule | `api.bayesinstitute.com` â†’ `bayes-server-backend` for all paths |
 
-Keep the default route on `bayes-client-backend`; it serves both `bayesinstitute.com` and `www.bayesinstitute.com`. Enable backend logging during creation. Do not enable Cloud CDN for the API backend. Leave Cloud CDN off for the client until cache-control behavior and authenticated pages have been reviewed.
+Keep the default route on `bayes-client-backend`; it serves both `bayesinstitute.com` and `www.bayesinstitute.com`. In Certificate Manager, add one map entry for each exact hostname, all referencing `bayes-public-cert`; attach the map to the HTTPS target proxy. Enable backend logging during creation. Do not enable Cloud CDN for the API backend. Leave Cloud CDN off for the client until cache-control behavior and authenticated pages have been reviewed.
 
 After creating the frontend, obtain the fixed IP address and confirm the certificate is provisioning:
 
 ~~~powershell
 $LoadBalancerIp = gcloud compute addresses describe bayes-public-ip --global --format="value(address)"
 $LoadBalancerIp
-gcloud compute ssl-certificates describe bayes-public-cert --global
+gcloud certificate-manager certificates describe bayes-public-cert --location=global
 ~~~
 
 ### 11.4 Point Cloudflare DNS directly at the load balancer
@@ -393,7 +393,7 @@ DNS and certificate issuance can take from several minutes to several hours. Do 
 Resolve-DnsName bayesinstitute.com
 Resolve-DnsName www.bayesinstitute.com
 Resolve-DnsName api.bayesinstitute.com
-gcloud compute ssl-certificates describe bayes-public-cert --global --format="value(managed.status)"
+gcloud certificate-manager certificates describe bayes-public-cert --location=global --format="value(managed.state)"
 ~~~
 
 ### 11.5 Switch the application to its canonical origins and redeploy
