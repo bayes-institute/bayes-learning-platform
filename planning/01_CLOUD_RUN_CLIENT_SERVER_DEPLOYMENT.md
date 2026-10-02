@@ -42,6 +42,66 @@ server/                       FastAPI app
 
 The exact folder names may differ, but client and server must be independently buildable.
 
+### Local environment preflight
+
+Before running the app locally, install Node.js 20.9 or newer and Python 3.10 or newer, then install each service's dependencies as described in the root README. Docker is optional. From the repository root, run `scripts/start-dev.sh` on Linux or `scripts/start-dev.ps1` in Windows PowerShell. The startup script creates `client/.env.local` and `server/.env` from their examples if they do not exist. Review and fill these local files; they are ignored by Git and must not be committed.
+
+There are two levels of local configuration:
+
+- **Start the public client and health endpoints:** the example values for the local URLs and server origin are sufficient. Firebase credentials are not needed just to start the processes or open `/` and `/health`.
+- **Use Firebase sign-in, protected client sessions, and Firebase-token API verification:** fill the Firebase browser settings below and configure Firebase Admin credentials for both services. A running health endpoint does not confirm that authentication is configured.
+
+#### `client/.env.local`
+
+| Variable | Required for | Local value / how to obtain it |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Local client | `http://localhost:3000` |
+| `NEXT_PUBLIC_SERVER_API_ORIGIN` | Calls from client to FastAPI | `http://localhost:8000` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase browser sign-in | Firebase Console → Project settings → General → Your apps → select the Web app → copy `apiKey`. Register a Web app there first if the project has none. |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase browser sign-in | Copy `authDomain` from that Web app's Firebase configuration. It is commonly `<project-id>.firebaseapp.com`; use the Console value if a custom domain is configured. |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase browser sign-in and Admin project selection | Copy `projectId` from the same Web app configuration. It should match the Firebase project used by the server. |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase browser configuration | Copy `storageBucket` from the Web app configuration. |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase browser configuration | Copy `messagingSenderId` from the Web app configuration. |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase browser sign-in | Copy `appId` from the Web app configuration. |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | Analytics only | Copy `measurementId` if Firebase Analytics is enabled for the Web app. This field is optional for sign-in. |
+
+These `NEXT_PUBLIC_` values are included in browser code; they are Firebase's public web-app configuration, not admin secrets. After setting them, enable the sign-in providers the app offers in Firebase Console → Authentication → Sign-in method, and add `localhost` under Authentication → Settings → Authorized domains. Provider-specific OAuth setup (for example, Google or GitHub client credentials) is configured with that provider in Firebase Console, not in these environment files.
+
+The client also needs Firebase Admin credentials when it creates or verifies its protected session cookie. Set **one** of these credential methods in `client/.env.local`:
+
+| Method | Variables | How to get/configure it |
+| --- | --- | --- |
+| Application Default Credentials (recommended for local development) | `GOOGLE_APPLICATION_CREDENTIALS` | Set it to the absolute path of a Firebase/Google service-account JSON file available on this machine. Alternatively, run `gcloud auth application-default login` and leave this variable blank; make sure the signed-in identity has the Firebase Authentication permissions required by the Admin SDK. |
+| Explicit Firebase Admin service-account fields | `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY` | In Firebase Console → Project settings → Service accounts → Firebase Admin SDK, generate/download a private key JSON. Copy `project_id`, `client_email`, and `private_key` into these fields. Keep newline markers as literal `\\n` if entering the private key on one line. Set all three fields together. |
+
+Keep the JSON file outside the repository, restrict access to it, and never commit it or paste its private key into a `NEXT_PUBLIC_` variable. If both credential methods are configured, the explicit `FIREBASE_ADMIN_*` fields take precedence in the client.
+
+#### `server/.env`
+
+| Variable | Required for | Local value / how to obtain it |
+| --- | --- | --- |
+| `APPLICATION_ENV` | Server mode | Use `development` locally. |
+| `SERVER_ALLOWED_CLIENT_ORIGINS` | Browser calls to FastAPI | Use `http://localhost:3000` locally. For multiple origins, separate them with commas. |
+| `FIREBASE_PROJECT_ID` | Firebase Admin project selection | Recommended: use the same project ID as `NEXT_PUBLIC_FIREBASE_PROJECT_ID`; find it in Firebase Console → Project settings → General. If blank, `FIREBASE_ADMIN_PROJECT_ID` must provide the project ID instead. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Firebase Admin authentication when using ADC | Use the same secured absolute JSON-file path as the client, or leave blank when using `gcloud auth application-default login`. |
+| `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY` | Alternative Firebase Admin authentication | Use the same service-account JSON fields as the client. Set all three or leave all three blank. |
+| `FIREBASE_ADMIN_CREDENTIALS_FILE` | Docker credential overlay only | Optional. Used only by `docker-compose.credentials.example.yml` to mount a key file into containers. The direct local startup scripts do not need it. |
+
+The Admin SDK credential method is needed to verify Firebase ID tokens on protected API routes; the `/health` route itself does not need it. For direct local development, put the chosen Admin credential method in **both** `client/.env.local` and `server/.env`, since Next.js and FastAPI are separate processes. Use `FIREBASE_ADMIN_PROJECT_ID` consistently with the browser project ID. Never check real values into Git.
+
+`PORT` is assigned by Docker/Cloud Run (and the local scripts use ports 3000 and 8000); do not add it to these files for local startup. `NODE_ENV` is managed by Next.js. `WIF_PROVIDER`, `GCP_PROJECT_ID`, and the other deployment variables later in this runbook are for GitHub Actions/Cloud Run deployment, not local startup.
+
+Before testing the full local authentication flow, confirm each item:
+
+- [ ] `client/.env.local` has both local URLs and all Firebase Web app values except the optional Analytics measurement ID.
+- [ ] `client/.env.local` has one working Firebase Admin credential method.
+- [ ] `server/.env` has `APPLICATION_ENV=development`, `SERVER_ALLOWED_CLIENT_ORIGINS=http://localhost:3000`, and the same Firebase project ID.
+- [ ] `server/.env` has one working Firebase Admin credential method matching the client configuration.
+- [ ] The intended Firebase Authentication provider is enabled, and `localhost` is an authorized domain.
+- [ ] Node and Python dependencies have been installed, and the startup script reports both health endpoints ready.
+
+If you only need to verify the UI and health endpoints, the Firebase values and credential checklist items can remain unset; Firebase sign-in and protected routes will not work until they are configured.
+
 ### Required runtime contracts
 
 1. The client listens on the port passed through the PORT environment variable.
@@ -219,75 +279,11 @@ Change the Python commands to match the selected FastAPI tooling after refactori
 
 ## Step 9 — add CD
 
-This workflow runs only after the CI workflow succeeds for code on main. It creates SHA-tagged images, deploys both services with the selected zero-minimum policy, then checks both health endpoints. This dependency is important: two unrelated workflows triggered by the same push can otherwise run at the same time.
-
-~~~yaml
-# .github/workflows/deploy-production.yml
-name: Deploy production
-on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
-concurrency:
-  group: production-deployment
-  cancel-in-progress: false
-permissions:
-  contents: read
-  id-token: write
-env:
-  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  REGION: ${{ vars.GCP_REGION }}
-  WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
-  DEPLOYER_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
-  CLIENT_ORIGIN: ${{ vars.CLIENT_ORIGIN }}
-  SERVER_ORIGIN: ${{ vars.SERVER_ORIGIN }}
-  NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-  NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
-  NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
-  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
-  REPOSITORY: bayes-containers
-jobs:
-  deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.DEPLOYER_SERVICE_ACCOUNT }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - name: Build, push, deploy, and smoke test
-        shell: bash
-        run: |
-          set -euo pipefail
-          REGISTRY="${REGION}-docker.pkg.dev"
-          CLIENT_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/client:${DEPLOY_SHA}"
-          SERVER_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/server:${DEPLOY_SHA}"
-          gcloud auth configure-docker "${REGISTRY}" --quiet
-          docker build --tag "${CLIENT_IMAGE}" --build-arg NEXT_PUBLIC_SITE_URL="${CLIENT_ORIGIN}" --build-arg NEXT_PUBLIC_SERVER_API_ORIGIN="${SERVER_ORIGIN}" --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="${NEXT_PUBLIC_FIREBASE_API_KEY}" --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}" --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="${NEXT_PUBLIC_FIREBASE_PROJECT_ID}" --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}" --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}" --build-arg NEXT_PUBLIC_FIREBASE_APP_ID="${NEXT_PUBLIC_FIREBASE_APP_ID}" --build-arg NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="${NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}" ./client
-          docker push "${CLIENT_IMAGE}"
-          docker build --tag "${SERVER_IMAGE}" ./server
-          docker push "${SERVER_IMAGE}"
-          gcloud run deploy bayes-client --image "${CLIENT_IMAGE}" --region "${REGION}" --service-account "bayes-client-runtime@${PROJECT_ID}.iam.gserviceaccount.com" --min 0 --max 3 --cpu 1 --memory 512Mi --concurrency 40 --cpu-boost --ingress all --allow-unauthenticated
-          gcloud run deploy bayes-server --image "${SERVER_IMAGE}" --region "${REGION}" --service-account "bayes-server-runtime@${PROJECT_ID}.iam.gserviceaccount.com" --min 0 --max 3 --cpu 1 --memory 512Mi --concurrency 20 --cpu-boost --ingress all --allow-unauthenticated --set-env-vars "APPLICATION_ENV=production,SERVER_ALLOWED_CLIENT_ORIGINS=${CLIENT_ORIGIN},FIREBASE_PROJECT_ID=${PROJECT_ID}"
-          CLIENT_URL="$(gcloud run services describe bayes-client --region "${REGION}" --format='value(status.url)')"
-          SERVER_URL="$(gcloud run services describe bayes-server --region "${REGION}" --format='value(status.url)')"
-          curl --fail --retry 3 "${CLIENT_URL}/healthz"
-          curl --fail --retry 3 "${SERVER_URL}/healthz"
-~~~
+The committed [production deployment workflow](../.github/workflows/deploy-production.yml) runs only after CI succeeds for a `push` to this repository's `main` branch. It validates the required GitHub Actions variables, authenticates with Workload Identity Federation, builds SHA-tagged images, deploys the server before the client, and checks both `/healthz` endpoints. It serializes deployments so a newer release cannot be superseded midway through an earlier one.
 
 The public invocation flag is deliberate: a browser cannot use Firebase ID tokens as Cloud Run IAM invocation tokens. The services remain secure only when the application checks Firebase credentials, roles, ownership, Firestore Rules, App Check, input validation, CORS, and rate limits. Public invocation never means public data.
 
-Do not add this workflow until the Step 1 folders and health routes exist. The service configuration in this workflow is the initial source of truth. [Google's Cloud Run GitHub deploy action](https://github.com/google-github-actions/deploy-cloudrun)
+The service configuration in this workflow is the deployment source of truth. GitHub Environment protection for `production` applies before deployment. [Google's Cloud Run GitHub deploy action](https://github.com/google-github-actions/deploy-cloudrun)
 
 ## Step 10 — deploy and verify
 

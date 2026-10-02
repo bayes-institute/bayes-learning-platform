@@ -1,0 +1,148 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+  DEPLOYER_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+  CLIENT_ORIGIN: ${{ vars.CLIENT_ORIGIN }}
+  SERVER_ORIGIN: ${{ vars.SERVER_ORIGIN }}
+  NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+  NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+  NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+  REPOSITORY: bayes-containers
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  deploy:
+    # workflow_run has elevated credentials. Restrict it to a successful CI run
+    # that was caused by a push to this repository's main branch.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_variables=(
+            PROJECT_ID
+            REGION
+            WIF_PROVIDER
+            DEPLOYER_SERVICE_ACCOUNT
+            CLIENT_ORIGIN
+            SERVER_ORIGIN
+            NEXT_PUBLIC_FIREBASE_API_KEY
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+            NEXT_PUBLIC_FIREBASE_APP_ID
+          )
+
+          missing_variables=()
+          for variable_name in "${required_variables[@]}"; do
+            [[ -n "${!variable_name:-}" ]] || missing_variables+=("${variable_name}")
+          done
+          if (( ${#missing_variables[@]} > 0 )); then
+            printf 'Missing GitHub Actions variables: %s\n' "${missing_variables[*]}" >&2
+            exit 1
+          fi
+
+          for origin_name in CLIENT_ORIGIN SERVER_ORIGIN; do
+            origin="${!origin_name}"
+            [[ "$origin" =~ ^https://[^/]+$ ]] || {
+              printf '%s must be an HTTPS origin without a path or trailing slash: %s\n' "$origin_name" "$origin" >&2
+              exit 1
+            }
+          done
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Build, push, deploy, and smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${REGION}-docker.pkg.dev"
+          client_image="${registry}/${PROJECT_ID}/${REPOSITORY}/client:${DEPLOY_SHA}"
+          server_image="${registry}/${PROJECT_ID}/${REPOSITORY}/server:${DEPLOY_SHA}"
+
+          gcloud auth configure-docker "${registry}" --quiet
+
+          docker build \
+            --tag "${client_image}" \
+            --build-arg "NEXT_PUBLIC_SITE_URL=${CLIENT_ORIGIN}" \
+            --build-arg "NEXT_PUBLIC_SERVER_API_ORIGIN=${SERVER_ORIGIN}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}" \
+            ./client
+          docker build --tag "${server_image}" ./server
+          docker push "${client_image}"
+          docker push "${server_image}"
+
+          gcloud run deploy bayes-server \
+            --image "${server_image}" \
+            --region "${REGION}" \
+            --service-account "bayes-server-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --min 0 --max 3 --cpu 1 --memory 512Mi --concurrency 20 --cpu-boost \
+            --ingress all --allow-unauthenticated \
+            --update-env-vars "APPLICATION_ENV=production,SERVER_ALLOWED_CLIENT_ORIGINS=${CLIENT_ORIGIN},FIREBASE_PROJECT_ID=${PROJECT_ID}" \
+            --quiet
+
+          gcloud run deploy bayes-client \
+            --image "${client_image}" \
+            --region "${REGION}" \
+            --service-account "bayes-client-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --min 0 --max 3 --cpu 1 --memory 512Mi --concurrency 40 --cpu-boost \
+            --ingress all --allow-unauthenticated \
+            --quiet
+
+          client_url="$(gcloud run services describe bayes-client --region "${REGION}" --format='value(status.url)')"
+          server_url="$(gcloud run services describe bayes-server --region "${REGION}" --format='value(status.url)')"
+          [[ -n "${client_url}" && -n "${server_url}" ]] || {
+            printf 'Cloud Run did not return both service URLs.\n' >&2
+            exit 1
+          }
+
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${client_url}/healthz"
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${server_url}/healthz"

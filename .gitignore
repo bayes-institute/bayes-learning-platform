@@ -17,6 +17,8 @@ server/dist/
 **/.env
 **/.env.*
 !**/.env.example
+.creds
+gha-creds-*.json
 docker-compose.credentials.yml
 
 # Root-generated output retained only while migrating the old layout
