@@ -108,7 +108,7 @@ try {
     $ServerProcess = Start-Process -FilePath $venvPython -ArgumentList $serverArgs -WorkingDirectory $ServerDir -RedirectStandardOutput $serverLog -RedirectStandardError (Join-Path $LocalDevDir 'server-error.log') -PassThru -WindowStyle Hidden
     $ClientProcess = Start-Process -FilePath $env:ComSpec -ArgumentList '/d /s /c "npm run dev -- --hostname 127.0.0.1 --port 3000"' -WorkingDirectory $ClientDir -RedirectStandardOutput $clientLog -RedirectStandardError (Join-Path $LocalDevDir 'client-error.log') -PassThru -WindowStyle Hidden
 
-    foreach ($service in @(@{ Name = 'FastAPI'; Url = 'http://127.0.0.1:8000/health'; Process = $ServerProcess }, @{ Name = 'Next.js'; Url = 'http://127.0.0.1:3000/health'; Process = $ClientProcess })) {
+    foreach ($service in @(@{ Name = 'FastAPI'; Url = 'http://127.0.0.1:8000/healthz'; Process = $ServerProcess }, @{ Name = 'Next.js'; Url = 'http://127.0.0.1:3000/healthz'; Process = $ClientProcess })) {
         $ready = $false
         for ($attempt = 0; $attempt -lt 60; $attempt++) {
             if ($service.Process.HasExited) { Fail "$($service.Name) exited before becoming healthy. Check .local-dev logs." }

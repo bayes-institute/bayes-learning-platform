@@ -112,8 +112,8 @@ wait_for_health() {
   done
   fail "$name did not become healthy at $url within 60 seconds."
 }
-wait_for_health 'FastAPI' 'http://127.0.0.1:8000/health' "$SERVER_PID"
-wait_for_health 'Next.js' 'http://127.0.0.1:3000/health' "$CLIENT_PID"
+wait_for_health 'FastAPI' 'http://127.0.0.1:8000/healthz' "$SERVER_PID"
+wait_for_health 'Next.js' 'http://127.0.0.1:3000/healthz' "$CLIENT_PID"
 printf '\nBayes Learning Platform is running. Press Ctrl+C to stop both services.\n'
 
 while true; do

@@ -21,8 +21,20 @@ const interfaceFont = IBM_Plex_Sans({
   display: "swap",
 });
 
+function getMetadataBaseUrl(): URL {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) {
+    try {
+      return new URL(configured);
+    } catch {
+      // Fallback if configured URL is malformed
+    }
+  }
+  return new URL("https://bayesinstitute.com");
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://bayesinstitute.com"),
+  metadataBase: getMetadataBaseUrl(),
   title: {
     default: "Bayes Institute | Learn with clarity",
     template: "%s | Bayes Institute",

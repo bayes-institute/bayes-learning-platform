@@ -34,7 +34,7 @@ bash scripts/start-dev.sh       # Linux
 powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1  # Windows PowerShell
 ```
 
-The scripts create `client/.env.local` and `server/.env` from their examples when missing, check dependencies and ports, start the client and API, and wait for both `/health` routes. Add Firebase browser settings to `client/.env.local` to use sign-in. If port 3000 or 8000 is occupied, the script shows the owning process and asks before stopping it. Press Ctrl+C to stop both services. On Windows, service output is written to the ignored `.local-dev` folder.
+The scripts create `client/.env.local` and `server/.env` from their examples when missing, check dependencies and ports, start the client and API, and wait for both `/healthz` routes. Add Firebase browser settings to `client/.env.local` to use sign-in. If port 3000 or 8000 is occupied, the script shows the owning process and asks before stopping it. Press Ctrl+C to stop both services. On Windows, service output is written to the ignored `.local-dev` folder.
 
 ### Run with Docker Compose
 
@@ -49,7 +49,7 @@ The scripts create `client/.env.local` and `server/.env` from their examples whe
 
    docker compose --env-file client/.env.local -f docker-compose.yml -f docker-compose.credentials.yml up --build
 
-Client is available at http://localhost:3000, server at http://localhost:8000, and both liveness endpoints are available at /health without authentication. The optional credential overlay is not needed for a health-only start.
+Client is available at http://localhost:3000, server at http://localhost:8000, and both liveness endpoints are available at /healthz without authentication. The optional credential overlay is not needed for a health-only start.
 
 For deployment, start with [the Cloud Run client/server runbook](planning/01_CLOUD_RUN_CLIENT_SERVER_DEPLOYMENT.md).
 

@@ -48,7 +48,7 @@ Before running the app locally, install Node.js 20.9 or newer and Python 3.10 or
 
 There are two levels of local configuration:
 
-- **Start the public client and health endpoints:** the example values for the local URLs and server origin are sufficient. Firebase credentials are not needed just to start the processes or open `/` and `/health`.
+- **Start the public client and health endpoints:** the example values for the local URLs and server origin are sufficient. Firebase credentials are not needed just to start the processes or open `/` and `/healthz`.
 - **Use Firebase sign-in, protected client sessions, and Firebase-token API verification:** fill the Firebase browser settings below and configure Firebase Admin credentials for both services. A running health endpoint does not confirm that authentication is configured.
 
 #### `client/.env.local`
@@ -87,7 +87,7 @@ Keep the JSON file outside the repository, restrict access to it, and never comm
 | `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY` | Alternative Firebase Admin authentication | Use the same service-account JSON fields as the client. Set all three or leave all three blank. |
 | `FIREBASE_ADMIN_CREDENTIALS_FILE` | Docker credential overlay only | Optional. Used only by `docker-compose.credentials.example.yml` to mount a key file into containers. The direct local startup scripts do not need it. |
 
-The Admin SDK credential method is needed to verify Firebase ID tokens on protected API routes; the `/health` route itself does not need it. For direct local development, put the chosen Admin credential method in **both** `client/.env.local` and `server/.env`, since Next.js and FastAPI are separate processes. Use `FIREBASE_ADMIN_PROJECT_ID` consistently with the browser project ID. Never check real values into Git.
+The Admin SDK credential method is needed to verify Firebase ID tokens on protected API routes; the `/healthz` route itself does not need it. For direct local development, put the chosen Admin credential method in **both** `client/.env.local` and `server/.env`, since Next.js and FastAPI are separate processes. Use `FIREBASE_ADMIN_PROJECT_ID` consistently with the browser project ID. Never check real values into Git.
 
 `PORT` is assigned by Docker/Cloud Run (and the local scripts use ports 3000 and 8000); do not add it to these files for local startup. `NODE_ENV` is managed by Next.js. `WIF_PROVIDER`, `GCP_PROJECT_ID`, and the other deployment variables later in this runbook are for GitHub Actions/Cloud Run deployment, not local startup.
 
