@@ -3,19 +3,19 @@ from fastapi.testclient import TestClient
 from app.main import create_application
 
 
-def test_healthz_route_is_available_without_authentication() -> None:
+def test_health_route_is_available_without_authentication() -> None:
     client = TestClient(create_application())
 
-    response = client.get("/healthz")
+    response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "server"}
 
 
-def test_health_route_is_not_found() -> None:
+def test_healthz_route_is_not_found() -> None:
     client = TestClient(create_application())
 
-    response = client.get("/health")
+    response = client.get("/healthz")
 
     assert response.status_code == 404
 

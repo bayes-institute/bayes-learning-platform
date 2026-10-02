@@ -13,6 +13,6 @@ Run locally:
     copy .env.example .env
     uvicorn app.main:application --reload --port 8000
 
-The health endpoint is available without credentials at /healthz. The
+The health endpoint is available without credentials at /health. The
 authenticated-user endpoint at /v1/authenticated-user requires a Firebase
 bearer token.

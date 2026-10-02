@@ -144,5 +144,5 @@ jobs:
             exit 1
           }
 
-          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${client_url}/healthz"
-          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${server_url}/healthz"
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${client_url}/health"
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${server_url}/health"

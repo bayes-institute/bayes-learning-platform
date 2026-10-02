@@ -48,7 +48,7 @@ Before running the app locally, install Node.js 20.9 or newer and Python 3.10 or
 
 There are two levels of local configuration:
 
-- **Start the public client and health endpoints:** the example values for the local URLs and server origin are sufficient. Firebase credentials are not needed just to start the processes or open `/` and `/healthz`.
+- **Start the public client and health endpoints:** the example values for the local URLs and server origin are sufficient. Firebase credentials are not needed just to start the processes or open `/` and `/health`.
 - **Use Firebase sign-in, protected client sessions, and Firebase-token API verification:** fill the Firebase browser settings below and configure Firebase Admin credentials for both services. A running health endpoint does not confirm that authentication is configured.
 
 #### `client/.env.local`
@@ -87,7 +87,7 @@ Keep the JSON file outside the repository, restrict access to it, and never comm
 | `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY` | Alternative Firebase Admin authentication | Use the same service-account JSON fields as the client. Set all three or leave all three blank. |
 | `FIREBASE_ADMIN_CREDENTIALS_FILE` | Docker credential overlay only | Optional. Used only by `docker-compose.credentials.example.yml` to mount a key file into containers. The direct local startup scripts do not need it. |
 
-The Admin SDK credential method is needed to verify Firebase ID tokens on protected API routes; the `/healthz` route itself does not need it. For direct local development, put the chosen Admin credential method in **both** `client/.env.local` and `server/.env`, since Next.js and FastAPI are separate processes. Use `FIREBASE_ADMIN_PROJECT_ID` consistently with the browser project ID. Never check real values into Git.
+The Admin SDK credential method is needed to verify Firebase ID tokens on protected API routes; the `/health` route itself does not need it. For direct local development, put the chosen Admin credential method in **both** `client/.env.local` and `server/.env`, since Next.js and FastAPI are separate processes. Use `FIREBASE_ADMIN_PROJECT_ID` consistently with the browser project ID. Never check real values into Git.
 
 `PORT` is assigned by Docker/Cloud Run (and the local scripts use ports 3000 and 8000); do not add it to these files for local startup. `NODE_ENV` is managed by Next.js. `WIF_PROVIDER`, `GCP_PROJECT_ID`, and the other deployment variables later in this runbook are for GitHub Actions/Cloud Run deployment, not local startup.
 
@@ -106,7 +106,7 @@ If you only need to verify the UI and health endpoints, the Firebase values and 
 
 1. The client listens on the port passed through the PORT environment variable.
 2. FastAPI/Uvicorn listens on 0.0.0.0 and the PORT environment variable.
-3. Both applications expose GET /healthz, returning 200 without user authentication, database writes, or third-party calls.
+3. Both applications expose GET /health, returning 200 without user authentication, database writes, or third-party calls.
 4. FastAPI verifies Firebase ID tokens and authorizes every operation. Never trust a user ID or role supplied by the browser.
 5. Use Cloud Run runtime service accounts and Application Default Credentials where possible. Do not put a Firebase service-account JSON file in the image.
 6. The browser calls the FastAPI API domain directly. FastAPI CORS allows only the production client domain and local development origin.
@@ -279,7 +279,7 @@ Change the Python commands to match the selected FastAPI tooling after refactori
 
 ## Step 9 — add CD
 
-The committed [production deployment workflow](../.github/workflows/deploy-production.yml) runs only after CI succeeds for a `push` to this repository's `main` branch. It validates the required GitHub Actions variables, authenticates with Workload Identity Federation, builds SHA-tagged images, deploys the server before the client, and checks both `/healthz` endpoints. It serializes deployments so a newer release cannot be superseded midway through an earlier one.
+The committed [production deployment workflow](../.github/workflows/deploy-production.yml) runs only after CI succeeds for a `push` to this repository's `main` branch. It validates the required GitHub Actions variables, authenticates with Workload Identity Federation, builds SHA-tagged images, deploys the server before the client, and checks both `/health` endpoints. It serializes deployments so a newer release cannot be superseded midway through an earlier one.
 
 The public invocation flag is deliberate: a browser cannot use Firebase ID tokens as Cloud Run IAM invocation tokens. The services remain secure only when the application checks Firebase credentials, roles, ownership, Firestore Rules, App Check, input validation, CORS, and rate limits. Public invocation never means public data.
 
@@ -302,8 +302,8 @@ gcloud run services describe bayes-server --region=$Region
 ~~~powershell
 $ClientUrl = gcloud run services describe bayes-client --region=$Region --format="value(status.url)"
 $ServerUrl = gcloud run services describe bayes-server --region=$Region --format="value(status.url)"
-Invoke-WebRequest "$ClientUrl/healthz"
-Invoke-WebRequest "$ServerUrl/healthz"
+Invoke-WebRequest "$ClientUrl/health"
+Invoke-WebRequest "$ServerUrl/health"
 ~~~
 
 5. Test client sign-in; server rejection without a bearer token; server authorization with a valid token; Firestore Rules; App Check; CORS; logs; and error reporting.
