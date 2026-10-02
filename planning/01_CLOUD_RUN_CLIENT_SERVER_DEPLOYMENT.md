@@ -114,9 +114,9 @@ If you only need to verify the UI and health endpoints, the Firebase values and 
 
 ## Step 2 — choose project and region
 
-Use the existing Google Cloud project that owns Firebase Authentication and Firestore. Do not create a second project.
+Use the existing Google Cloud project that owns Firebase Authentication. Do not create a second project.
 
-Before selecting a region, inspect the Firestore database location in Firebase Console or Google Cloud Console. Choose the closest compatible Cloud Run region and use that same region for Artifact Registry.
+Choose the Cloud Run region nearest the expected learners and use that same region for Artifact Registry. When a database is added, select a compatible location deliberately and keep the database connection private to the API.
 
 In PowerShell, install the Google Cloud CLI, authenticate with an administrator identity, then run:
 
@@ -158,11 +158,7 @@ $ClientRuntimeSa = "bayes-client-runtime@$ProjectId.iam.gserviceaccount.com"
 $ServerRuntimeSa = "bayes-server-runtime@$ProjectId.iam.gserviceaccount.com"
 ~~~
 
-Initially, client should receive no broad project permission. If FastAPI reads or writes Firestore, grant only its runtime account Firestore user access:
-
-~~~powershell
-gcloud projects add-iam-policy-binding $ProjectId --member="serviceAccount:$ServerRuntimeSa" --role="roles/datastore.user"
-~~~
+Initially, the client should receive no broad project permission and the server should receive no database-provider role. When a FastAPI feature needs persistence, grant only the server runtime account the provider-specific access that feature needs; never grant it to the client or deployment identity.
 
 When a real secret is introduced, create it in Secret Manager and grant the required runtime account access to that one secret:
 
@@ -180,7 +176,7 @@ Use a version number instead of latest for a configuration change that must be f
 
 ## Step 5 — create the GitHub deployment identity
 
-Create one deployment-only identity. It can deploy Cloud Run services, push images, and attach the two designated runtime identities. It cannot access application secrets or Firestore data.
+Create one deployment-only identity. It can deploy Cloud Run services, push images, and attach the two designated runtime identities. It cannot access application secrets or application data.
 
 ~~~powershell
 gcloud iam service-accounts create bayes-github-deployer --display-name="GitHub Actions Cloud Run deployer"
@@ -281,7 +277,7 @@ Change the Python commands to match the selected FastAPI tooling after refactori
 
 The committed [production deployment workflow](../.github/workflows/deploy-production.yml) runs only after CI succeeds for a `push` to this repository's `main` branch. It validates the required GitHub Actions variables, authenticates with Workload Identity Federation, builds SHA-tagged images, deploys the server before the client, and checks both `/health` endpoints. It serializes deployments so a newer release cannot be superseded midway through an earlier one.
 
-The public invocation flag is deliberate: a browser cannot use Firebase ID tokens as Cloud Run IAM invocation tokens. The services remain secure only when the application checks Firebase credentials, roles, ownership, Firestore Rules, App Check, input validation, CORS, and rate limits. Public invocation never means public data.
+The public invocation flag is deliberate: a browser cannot use Firebase ID tokens as Cloud Run IAM invocation tokens. The services remain secure only when the application checks Firebase credentials, roles, ownership, server-side authorization, input validation, CORS, and rate limits. Public invocation never means public data.
 
 The service configuration in this workflow is the deployment source of truth. GitHub Environment protection for `production` applies before deployment. [Google's Cloud Run GitHub deploy action](https://github.com/google-github-actions/deploy-cloudrun)
 
@@ -306,7 +302,7 @@ Invoke-WebRequest "$ClientUrl/health"
 Invoke-WebRequest "$ServerUrl/health"
 ~~~
 
-5. Test client sign-in; server rejection without a bearer token; server authorization with a valid token; Firestore Rules; App Check; CORS; logs; and error reporting.
+5. Test client sign-in; server rejection without a bearer token; server authorization with a valid token; API contracts for application data; CORS; logs; and error reporting.
 6. Confirm that both services use request-based billing, service-level minimum zero, and maximum three.
 7. Only after the run.app URLs pass, continue to Step 11 to add the production client and API hostnames.
 
@@ -476,4 +472,4 @@ Never roll back by overwriting a latest image tag. The SHA tag and Cloud Run rev
 - [ ] bayes-client and bayes-server are request-based, minimum zero, maximum three, and expose passing health checks.
 - [ ] `www.bayesinstitute.com` routes to the client and `api.bayesinstitute.com` routes to the server through the global external Application Load Balancer with an active managed certificate.
 - [ ] The public-abuse and cost-resistance launch checklist in [02_PUBLIC_ABUSE_AND_COST_HARDENING.md](02_PUBLIC_ABUSE_AND_COST_HARDENING.md) is complete, including load-balancer logging, enforced Cloud Armor limits, restricted direct Cloud Run ingress, and tested billing/anomaly alerts.
-- [ ] Firebase Auth, App Check, FastAPI authorization, Firestore Rules, CORS, logs, rollback, and billing alerts have been tested.
+- [ ] Firebase Auth, FastAPI authorization, API data contracts, CORS, logs, rollback, and billing alerts have been tested.

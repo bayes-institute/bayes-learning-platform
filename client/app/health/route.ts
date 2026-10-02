@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 /**
  * A dependency-free liveness endpoint. It intentionally does not verify a
- * session, read Firestore, or call any third-party service.
+ * session, query an application database, or call any third-party service.
  */
 export function GET(): NextResponse {
   return NextResponse.json(

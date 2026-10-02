@@ -12,7 +12,7 @@ The repository is organized around three human-facing areas:
 
 Firebase Authentication issues identity. Client owns interactive browser sign-in and its own secure session cookie because a cookie scoped to the client origin is what lets Next protect server-rendered routes. Server never trusts a user ID or role sent by the browser: it verifies the Firebase bearer token and derives the identity from the verified claims for every protected API operation.
 
-Firestore may be read directly by the browser only where Firestore Security Rules are the access-control authority. FastAPI owns privileged mutations, authorization decisions, grading, publishing, entitlements, payment webhooks, and media signing. This keeps ordinary client reads from becoming unnecessary server work.
+Application data is obtained through documented FastAPI contracts; the browser does not connect to a database. FastAPI owns authorization decisions, grading, publishing, entitlements, payment webhooks, media signing, and the server-side persistence implementation. Each feature keeps provider-specific persistence behind a repository so temporary Firestore can later be replaced with Cloud SQL without changing the client contract.
 
 ## Local development
 
