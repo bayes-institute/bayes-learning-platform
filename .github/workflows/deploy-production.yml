@@ -124,8 +124,8 @@ jobs:
             --image "${server_image}" \
             --region "${REGION}" \
             --service-account "bayes-server-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
-            --min 0 --max 3 --cpu 1 --memory 512Mi --concurrency 20 --cpu-boost \
-            --ingress all --allow-unauthenticated \
+            --min 0 --max 3 --max-instances 3 --cpu 1 --memory 512Mi --concurrency 20 --timeout 300s --cpu-boost \
+            --ingress internal-and-cloud-load-balancing --allow-unauthenticated \
             --update-env-vars "APPLICATION_ENV=production,SERVER_ALLOWED_CLIENT_ORIGINS=${CLIENT_ORIGIN},FIREBASE_PROJECT_ID=${PROJECT_ID}" \
             --quiet
 
@@ -133,16 +133,9 @@ jobs:
             --image "${client_image}" \
             --region "${REGION}" \
             --service-account "bayes-client-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
-            --min 0 --max 3 --cpu 1 --memory 512Mi --concurrency 40 --cpu-boost \
-            --ingress all --allow-unauthenticated \
+            --min 0 --max 3 --max-instances 3 --cpu 1 --memory 512Mi --concurrency 40 --timeout 300s --cpu-boost \
+            --ingress internal-and-cloud-load-balancing --allow-unauthenticated \
             --quiet
 
-          client_url="$(gcloud run services describe bayes-client --region "${REGION}" --format='value(status.url)')"
-          server_url="$(gcloud run services describe bayes-server --region "${REGION}" --format='value(status.url)')"
-          [[ -n "${client_url}" && -n "${server_url}" ]] || {
-            printf 'Cloud Run did not return both service URLs.\n' >&2
-            exit 1
-          }
-
-          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${client_url}/health"
-          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${server_url}/health"
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${CLIENT_ORIGIN}/health"
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --connect-timeout 10 --max-time 30 "${SERVER_ORIGIN}/health"

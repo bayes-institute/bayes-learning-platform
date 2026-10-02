@@ -1,0 +1,71 @@
+name: Deploy Firestore rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firebase.json
+      - .github/workflows/deploy-firestore-rules.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+  DEPLOYER_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable_name in PROJECT_ID WIF_PROVIDER DEPLOYER_SERVICE_ACCOUNT; do
+            [[ -n "${!variable_name:-}" ]] || {
+              printf 'Missing GitHub Actions variable: %s\n' "$variable_name" >&2
+              exit 1
+            }
+          done
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Deploy the versioned Firestore ruleset
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base='https://firebaserules.googleapis.com/v1'
+          access_token="$(gcloud auth print-access-token)"
+          source_body="$(python3 -c 'import json, pathlib; print(json.dumps({"source": {"files": [{"name": "firestore.rules", "content": pathlib.Path("firestore.rules").read_text()}]}}))')"
+
+          ruleset_response="$(curl --fail-with-body --silent --show-error \
+            --request POST "${api_base}/projects/${PROJECT_ID}/rulesets" \
+            --header "Authorization: Bearer ${access_token}" \
+            --header "X-Goog-User-Project: ${PROJECT_ID}" \
+            --header 'Content-Type: application/json' \
+            --data "${source_body}")"
+          ruleset_name="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])' <<<"${ruleset_response}")"
+          release_body="$(python3 -c 'import json, sys; print(json.dumps({"release": {"name": f"projects/{sys.argv[1]}/releases/cloud.firestore", "rulesetName": sys.argv[2]}, "updateMask": "rulesetName"}))' "${PROJECT_ID}" "${ruleset_name}")"
+
+          curl --fail-with-body --silent --show-error \
+            --request PATCH "${api_base}/projects/${PROJECT_ID}/releases/cloud.firestore" \
+            --header "Authorization: Bearer ${access_token}" \
+            --header "X-Goog-User-Project: ${PROJECT_ID}" \
+            --header 'Content-Type: application/json' \
+            --data "${release_body}" >/dev/null

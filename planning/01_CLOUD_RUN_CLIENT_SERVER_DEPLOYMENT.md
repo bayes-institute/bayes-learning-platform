@@ -475,4 +475,5 @@ Never roll back by overwriting a latest image tag. The SHA tag and Cloud Run rev
 - [ ] CD deploys only SHA-tagged client and server images from main.
 - [ ] bayes-client and bayes-server are request-based, minimum zero, maximum three, and expose passing health checks.
 - [ ] `www.bayesinstitute.com` routes to the client and `api.bayesinstitute.com` routes to the server through the global external Application Load Balancer with an active managed certificate.
+- [ ] The public-abuse and cost-resistance launch checklist in [02_PUBLIC_ABUSE_AND_COST_HARDENING.md](02_PUBLIC_ABUSE_AND_COST_HARDENING.md) is complete, including load-balancer logging, enforced Cloud Armor limits, restricted direct Cloud Run ingress, and tested billing/anomaly alerts.
 - [ ] Firebase Auth, App Check, FastAPI authorization, Firestore Rules, CORS, logs, rollback, and billing alerts have been tested.

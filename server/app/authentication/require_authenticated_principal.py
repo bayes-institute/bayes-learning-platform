@@ -42,6 +42,24 @@ def require_authenticated_principal(
     return AuthenticatedPrincipal.from_verified_firebase_token(verified_token)
 
 
+def require_verified_email(
+    principal: AuthenticatedPrincipal = Depends(require_authenticated_principal),
+) -> AuthenticatedPrincipal:
+    """Requires a Firebase-verified identity whose email address is verified.
+
+    Costly operations and ownership-changing routes must depend on this helper
+    in addition to their feature-specific authorization and quota controls.
+    """
+
+    if not principal.email_is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A verified email address is required for this operation.",
+        )
+
+    return principal
+
+
 def _extract_bearer_token(authorization: str | None) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(

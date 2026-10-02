@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Direct browser Firestore access is intentionally unavailable until a
+    // feature-specific, reviewed, and tested ruleset is deployed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

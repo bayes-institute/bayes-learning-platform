@@ -52,7 +52,7 @@ This table records the observed production state before this hardening work. Re-
 | Backend logging | Disabled | Enable it before previewing or enforcing any Armor rule. |
 | Cloud Armor | No policy exists or is attached | Create policies in preview, observe, then enforce the documented initial thresholds. |
 | Public API surface today | `/health` and `/v1/authenticated-user`; the latter requires a Firebase bearer token | Keep unauthenticated endpoints dependency-free and inexpensive. Do not add a costly anonymous endpoint. |
-| Firestore policy source | No Firestore Rules source/deployment configuration currently exists in this repository | Treat direct browser Firestore access as out of scope until rules are authored, tested, versioned, and deployed. |
+| Firestore policy source | The repository has a versioned deny-all [`firestore.rules`](../firestore.rules) source and protected GitHub deployment workflow; the live default-database release matches it | Treat direct browser Firestore access as out of scope until feature-specific rules are authored, tested, reviewed, and deployed. |
 
 Inspect the state with:
 
@@ -207,6 +207,8 @@ gcloud compute security-policies rules list --security-policy=bayes-server-armor
 
 ### 5.4 Enforce the tuned thresholds
 
+- [ ] **Todo (current state: preview mode):** Review Cloud Armor preview logs for representative client navigation, sign-in, API calls, and shared-IP traffic; tune the documented Armor thresholds, then disable preview on the rate rules and verify requests above each threshold return 429. Record the observed results before enforcement.
+
 After review, turn off preview on each rule. Do not silently change a threshold at the same time; make one measured decision per deployment record.
 
 ~~~powershell
@@ -280,7 +282,7 @@ Roll it out in this order:
 
 ### 8.3 Firestore rules are a launch gate for direct browser data access
 
-No versioned Firestore Rules configuration was found in the current repository. Therefore, do **not** add client-side Firestore reads or writes as a convenience while implementing features.
+The default Firestore database is governed by the versioned [`firestore.rules`](../firestore.rules) source, which deliberately denies every direct browser read and write. Therefore, do **not** add client-side Firestore reads or writes as a convenience while implementing features.
 
 Before the first direct browser Firestore feature, add a reviewed and tested Rules source file plus deployment process. The default model should be deny-by-default. A learner may read only published content and their own permitted data; they must never read another learner’s progress or write course definitions, roles, scores, or entitlements. Privileged mutations, grading, publishing, payments, and ownership changes stay in the FastAPI service and require server-side authorization.
 
@@ -306,15 +308,26 @@ Set a monthly amount that you are genuinely willing to spend during public launc
 
 Also enable cost anomaly notifications. If alerts are not watched promptly, connect the budget and anomaly notifications to a Pub/Sub topic and an independent human notification channel. Programmatic budget actions are possible, but an automatic billing disablement is an emergency kill switch that takes the entire product down; do not enable it without an explicit recovery procedure and owner approval.
 
+**Current launch control.** A monthly `₹1,000` budget named `Bayes public-launch monthly ceiling` is scoped only to this project. It alerts on both actual and forecasted spend at 20%, 50%, 80%, and 100%. It has no automated billing-disablement or workload action. The current email channel belongs to the project owner, so an independent recipient and cost-anomaly notification configuration remain launch gates rather than being represented as complete.
+
 ### 9.2 Apply quota intentionally
 
 In Google Cloud Console, review project quotas for Cloud Run, Firestore, Artifact Registry, Cloud Logging, and any future AI or storage service. Keep quotas comfortably above ordinary launch traffic but below a clearly unacceptable accidental-spend level. Record each quota decision, the intended feature load, and the recovery owner.
 
 Do not use a quota reduction that makes deployment, login, or incident recovery impossible. The goal is a controlled failure mode (429 or temporary unavailability), not a surprise production outage.
 
+| Service | Current launch decision | Intended feature load | Recovery owner |
+| --- | --- | --- | --- |
+| Cloud Run, `asia-south1` | Do not reduce the broad regional CPU or memory quota. The two service-level maximums of `3` bound public compute to six 1-vCPU / 512-MiB instances, while preserving deployment and recovery headroom. | Next.js client and FastAPI API only. | Project owner |
+| Firestore | Do not add a quota preference. The default database has fixed daily free quotas of 50,000 reads, 20,000 writes, and 20,000 deletes; direct browser access is denied until a feature-specific ruleset exists. | No direct browser data feature. | Project owner |
+| Artifact Registry | Do not reduce API-rate quotas. Preserve the ability to build, push, and roll back immutable release images. | Two container images per release. | Project owner |
+| Cloud Logging | Keep the 30-day default-log retention and 400-day required-audit retention. Revisit sampling only after a normal traffic baseline. | ALB and security investigation during launch. | Project owner |
+
 ### 9.3 Keep logs inexpensive and useful
 
 Use 100% ALB logging during initial traffic and Armor tuning. After a normal baseline exists, retain security-policy and error visibility while choosing an appropriate sample rate. Never log Firebase bearer tokens, session cookies, authorization headers, Firestore document contents, student answers, or raw request bodies.
+
+**Current launch control.** Both ALB backends have logging enabled with a sample rate of `1.0`. The application does not emit request headers, tokens, cookies, request bodies, Firestore data, or learner answers to logs.
 
 ## 10. Abuse response playbook
 
