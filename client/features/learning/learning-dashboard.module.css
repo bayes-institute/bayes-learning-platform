@@ -1,0 +1,129 @@
+.page { min-height: 100dvh; background: #f8f6f1; }
+.frame { width: min(100%, 1600px); min-height: 100dvh; margin-inline: auto; background: var(--background-canvas); }
+.header { position: relative; z-index: 2; display: flex; min-height: 82px; align-items: center; justify-content: space-between; gap: 32px; padding-inline: clamp(24px, 5vw, 76px); border-bottom: 1px solid var(--border-subtle); background: var(--background-surface); }
+.brand { flex: 0 0 auto; }
+.brand img { width: min(168px, 36vw); height: auto; }
+.navigation { display: flex; align-self: stretch; align-items: center; gap: clamp(20px, 3vw, 42px); margin-left: clamp(20px, 4vw, 56px); }
+.navigation a { position: relative; display: inline-flex; height: 100%; align-items: center; color: var(--text-secondary); font-size: 12px; text-decoration: none; transition: color 160ms ease; }
+.navigation a:hover, .navigation .activeNav { color: var(--burgundy-600); }
+.navigation .activeNav { font-weight: 600; }
+.activeNav::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--burgundy-600); content: ""; }
+.content { max-width: 1440px; margin-inline: auto; padding: 0 clamp(24px, 5vw, 76px); }
+.welcome { display: flex; align-items: end; justify-content: space-between; gap: 32px; padding-block: clamp(55px, 7vw, 92px) 42px; }
+.eyebrow { display: flex; align-items: center; gap: 9px; margin: 0 0 16px; color: var(--burgundy-600); font-size: 9px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.eyebrow > span { width: 18px; height: 1px; background: currentColor; }
+.welcome h1 { max-width: unset; margin: 0 0 12px; font-size: clamp(2.8rem, 5.4vw, 5.1rem); letter-spacing: -.055em; line-height: .96; }
+.welcome h1 em { color: var(--burgundy-600); }
+.welcomeCopy { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.dateCard { display: flex; min-width: 220px; align-items: center; gap: 13px; padding: 14px 18px; border: 1px solid var(--border-subtle); background: var(--background-surface); }
+.dateIcon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: var(--verdigris-50); color: var(--verdigris-600); font-size: 18px; }
+.dateCard div { display: grid; gap: 3px; }
+.dateLabel { color: var(--text-secondary); font-size: 9px; letter-spacing: .05em; }
+.dateCard strong { font-size: 12px; font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.statCard { position: relative; display: grid; min-height: 126px; grid-template-columns: 38px 1fr; align-content: center; align-items: center; column-gap: 14px; padding: 20px 23px; border: 1px solid var(--border-subtle); background: var(--background-surface); }
+.statIcon { display: grid; width: 36px; height: 36px; grid-row: span 2; place-items: center; border-radius: 50%; background: var(--burgundy-50); color: var(--burgundy-600); font-size: 17px; }
+.statIconGreen { background: var(--verdigris-50); color: var(--verdigris-600); }
+.statIconSand { background: #f5efe3; color: #8b7044; }
+.statCard div p { margin: 0 0 2px; color: var(--text-secondary); font-size: 10px; }
+.statCard div strong { font-family: var(--font-display); font-size: 29px; font-weight: 500; line-height: 1; }
+.statCard div strong small { font-family: var(--font-sans); font-size: 10px; font-weight: 500; }
+.statFoot { grid-column: 2; margin-top: 8px; color: #8a7f80; font-size: 9px; }
+.continueSection, .coursesSection { padding-top: clamp(48px, 6.5vw, 78px); }
+.sectionHeading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.sectionHeading .eyebrow { margin-bottom: 11px; }
+.sectionHeading h2 { margin: 0; font-family: var(--font-display); font-size: clamp(2.1rem, 3.6vw, 3.25rem); font-weight: 400; letter-spacing: -.045em; line-height: 1; }
+.textLink, .exploreLink { display: inline-flex; align-items: center; gap: 12px; color: var(--burgundy-600); font-size: 10px; font-weight: 600; text-decoration: none; }
+.textLink:hover, .exploreLink:hover { color: var(--burgundy-800); }
+.textLink span, .exploreLink span { font-size: 15px; }
+.continueCard { display: grid; min-height: 306px; grid-template-columns: minmax(270px, .83fr) 1.17fr; overflow: hidden; border: 1px solid var(--border-default); background: var(--background-surface); }
+.courseArtwork { position: relative; min-height: 306px; overflow: hidden; background: var(--burgundy-600); color: var(--porcelain); }
+.courseArtwork::before, .courseArtwork::after { position: absolute; top: -54%; left: 21%; width: 115%; aspect-ratio: 1; border: 1px solid rgb(255 254 250 / 13%); border-radius: 50%; content: ""; }
+.courseArtwork::after { top: -28%; left: 42%; width: 90%; border-color: rgb(255 254 250 / 10%); }
+.artOrbitOne, .artOrbitTwo { position: absolute; top: 50%; left: 50%; width: 188px; height: 188px; border: 1px solid rgb(255 254 250 / 30%); border-radius: 50%; transform: translate(-50%, -50%) scaleY(.43) rotate(34deg); }
+.artOrbitTwo { transform: translate(-50%, -50%) scaleY(.43) rotate(-34deg); }
+.artCore { position: absolute; top: 50%; left: 50%; display: grid; width: 58px; height: 58px; place-items: center; border: 1px solid rgb(255 254 250 / 66%); border-radius: 50%; font-family: var(--font-display); font-size: 36px; transform: translate(-50%, -50%); }
+.artDot { position: absolute; top: 31%; left: 28%; width: 8px; height: 8px; border-radius: 50%; background: #a9d3ca; box-shadow: 0 0 0 5px rgb(169 211 202 / 15%); }
+.artLabel { position: absolute; bottom: 23px; left: 24px; font-size: 9px; font-weight: 600; letter-spacing: .16em; }
+.continueDetails { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: clamp(26px, 5vw, 54px); }
+.courseMeta { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.courseMeta > span:first-child { color: var(--burgundy-600); font-weight: 700; }
+.metaDivider { width: 3px; height: 3px; border-radius: 50%; background: #ae9fa0; }
+.continueDetails h3 { margin: 13px 0 5px; font-family: var(--font-display); font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 500; letter-spacing: -.035em; line-height: 1; }
+.lessonName { margin: 0 0 25px; color: var(--text-secondary); font-size: 11px; }
+.progressHeader { display: flex; width: 100%; justify-content: space-between; margin-bottom: 8px; color: var(--text-secondary); font-size: 9px; }
+.progressHeader strong { color: var(--text-primary); font-weight: 600; }
+.progressTrack, .miniTrack { display: block; width: 100%; height: 4px; overflow: hidden; background: #eee9e4; }
+.progressTrack > span, .miniTrack > span { display: block; height: 100%; background: var(--verdigris-600); }
+.continueButton { display: inline-flex; min-height: 40px; align-items: center; gap: 22px; margin-top: 22px; padding: 0 15px; background: var(--burgundy-600); color: var(--text-inverse); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-decoration: none; text-transform: uppercase; transition: background 160ms ease; }
+.continueButton:hover { background: var(--burgundy-700); }
+.continueButton span { font-size: 15px; }
+.sectionNote { max-width: 34ch; margin: 0 0 2px; color: var(--text-secondary); font-family: var(--font-display); font-size: 15px; font-style: italic; text-align: right; }
+.courseGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(180px, .78fr); gap: 15px; }
+.libraryCard { min-width: 0; border: 1px solid var(--border-default); background: var(--background-surface); }
+.libraryArtwork { position: relative; display: flex; min-height: 152px; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 17px 19px; background: var(--burgundy-600); color: var(--porcelain); }
+.libraryArtwork::before { position: absolute; top: -77%; right: -14%; width: 78%; aspect-ratio: 1; border: 1px solid rgb(255 254 250 / 18%); border-radius: 50%; content: ""; }
+.libraryArtwork::after { position: absolute; top: -53%; right: -30%; width: 78%; aspect-ratio: 1; border: 1px solid rgb(255 254 250 / 13%); border-radius: 50%; content: ""; }
+.greenArtwork { background: var(--verdigris-700); }
+.libraryNumber, .libraryCategory { position: relative; z-index: 1; font-size: 8px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.libraryGlyph { position: absolute; top: 41%; left: 50%; color: rgb(255 254 250 / 83%); font-family: var(--font-display); font-size: 61px; line-height: 1; transform: translate(-50%, -50%); }
+.libraryCategory { color: rgb(255 254 250 / 72%); }
+.libraryInfo { padding: 18px 19px 19px; }
+.libraryTitleRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.libraryTitleRow h3 { margin: 0; font-family: var(--font-display); font-size: 21px; font-weight: 500; letter-spacing: -.02em; line-height: 1.05; }
+.statusActive, .statusReady { flex: 0 0 auto; margin-top: 3px; padding: 4px 6px; background: var(--verdigris-50); color: var(--verdigris-700); font-size: 7px; font-weight: 600; letter-spacing: .04em; }
+.statusReady { background: #f6f1e9; color: #796644; }
+.libraryInfo > p { min-height: 34px; margin: 9px 0 15px; color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
+.libraryProgress { display: flex; align-items: center; gap: 9px; color: var(--text-secondary); font-size: 8px; white-space: nowrap; }
+.miniTrack { max-width: 120px; height: 3px; }
+.exploreLink { font-size: 9px; }
+.addCourseCard { display: flex; min-height: 260px; flex-direction: column; align-items: center; justify-content: center; padding: 24px; border: 1px dashed rgb(91 15 26 / 21%); text-align: center; }
+.addMark { display: grid; width: 40px; height: 40px; margin-bottom: 14px; place-items: center; border: 1px solid var(--border-default); border-radius: 50%; color: var(--burgundy-600); font-size: 21px; font-weight: 300; }
+.addCourseCard h3 { margin: 0 0 6px; font-family: var(--font-display); font-size: 21px; font-weight: 500; }
+.addCourseCard p { max-width: 22ch; margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
+.footer { display: flex; min-height: 91px; align-items: center; gap: 11px; margin-top: clamp(53px, 7vw, 85px); border-top: 1px solid var(--border-default); }
+.footer img { width: 27px; height: 27px; }
+.footer p { margin: 0 auto 0 0; color: var(--text-secondary); font-family: var(--font-display); font-size: 15px; font-style: italic; }
+.footer > span { color: var(--text-secondary); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
+
+@media (max-width: 900px) {
+  .header { gap: 18px; }
+  .navigation { gap: 19px; margin-left: 12px; }
+  .stats { gap: 10px; }
+  .statCard { padding-inline: 16px; }
+  .courseGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .addCourseCard { min-height: 190px; }
+}
+@media (max-width: 650px) {
+  .header { min-height: 70px; flex-wrap: wrap; padding-inline: 20px; }
+  .brand img { width: 146px; }
+  .navigation { order: 3; width: 100%; height: 42px; justify-content: space-between; margin: 0; }
+  .navigation a { font-size: 10px; }
+  .content { padding-inline: 20px; }
+  .welcome { align-items: flex-start; flex-direction: column; gap: 22px; padding-block: 46px 30px; }
+  .welcome h1 { max-width: 11ch; font-size: clamp(2.85rem, 12vw, 4rem); }
+  .dateCard { min-width: 0; padding: 9px 12px; }
+  .dateIcon { width: 32px; height: 32px; }
+  .stats { grid-template-columns: 1fr; gap: 8px; }
+  .statCard { min-height: 89px; grid-template-columns: 36px 1fr; padding: 12px 15px; }
+  .statIcon { width: 32px; height: 32px; }
+  .statFoot { margin-top: 4px; }
+  .continueSection, .coursesSection { padding-top: 48px; }
+  .sectionHeading { align-items: flex-start; flex-direction: column; gap: 13px; }
+  .sectionHeading h2 { font-size: 2.45rem; }
+  .sectionNote { text-align: left; }
+  .continueCard { grid-template-columns: 1fr; }
+  .courseArtwork { min-height: 200px; }
+  .artOrbitOne, .artOrbitTwo { width: 160px; height: 160px; }
+  .continueDetails { padding: 25px 21px; }
+  .lessonName { margin-bottom: 20px; }
+  .courseGrid { grid-template-columns: 1fr; }
+  .libraryArtwork { min-height: 172px; }
+  .libraryInfo { padding: 17px; }
+  .addCourseCard { min-height: 160px; }
+  .footer { flex-wrap: wrap; align-content: center; padding-block: 17px; }
+  .footer > span { width: 100%; margin-left: 38px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}

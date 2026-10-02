@@ -1,0 +1,32 @@
+{
+  "currentCourse": {
+    "title": "Probability & Statistics",
+    "subtitle": "Build a strong foundation in the language of uncertainty.",
+    "chapter": "Chapter 03",
+    "lesson": "Random variables and distributions",
+    "progress": 42,
+    "completedLessons": 8,
+    "totalLessons": 19,
+    "duration": "18 min"
+  },
+  "courses": [
+    {
+      "number": "01",
+      "category": "Foundations",
+      "title": "Probability & Statistics",
+      "description": "The essential tools for thinking clearly about data.",
+      "progress": 42,
+      "status": "In progress",
+      "tone": "burgundy"
+    },
+    {
+      "number": "02",
+      "category": "Decision science",
+      "title": "Bayesian Thinking",
+      "description": "Learn to update your beliefs as evidence arrives.",
+      "progress": 0,
+      "status": "Start learning",
+      "tone": "verdigris"
+    }
+  ]
+}
