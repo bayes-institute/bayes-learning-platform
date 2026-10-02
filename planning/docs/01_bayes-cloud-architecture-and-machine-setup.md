@@ -52,7 +52,7 @@ flowchart TD
     SERVER[Cloud Run<br/>bayes-server<br/>FastAPI<br/>min instances = 0]
 
     FIREBASE[Firebase Authentication]
-    FS[(Cloud Firestore)]
+    DB[(Application database)]
 
     U --> DNS
     DNS --> IP
@@ -68,7 +68,7 @@ flowchart TD
     CLIENT --> FIREBASE
     CLIENT -->|API requests| ALB
     SERVER --> FIREBASE
-    SERVER --> FS
+    SERVER --> DB
 
     classDef added fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     class CARMOR,SARMOR added
@@ -159,11 +159,11 @@ This explains why the first request after a long idle period can be slower: it c
 | Component | Resource | Why it exists |
 |---|---|---|
 | Google Cloud project | `bayes-institute` | Administrative and billing boundary shared with Firebase. |
-| Firestore | Firebase/Google project database | Durable application/student data. |
+| Application database | Server-side provider, selected per persistence feature | Durable application/student data; temporary Firestore can later be replaced with Cloud SQL behind the API. |
 | Firebase Authentication | Same Firebase project | User identity and sign-in. |
 | Artifact Registry | `bayes-containers` | Stores immutable Docker images built from the client and server. |
 | Client runtime identity | `bayes-client-runtime@...` | Identity used by the running Next.js Cloud Run service. |
-| Server runtime identity | `bayes-server-runtime@...` | Identity used by FastAPI; receives the permissions the API actually needs, such as Firestore access. |
+| Server runtime identity | `bayes-server-runtime@...` | Identity used by FastAPI; receives only the provider permissions required by the API. |
 | GitHub deployer identity | `bayes-github-deployer@...` | Deployment-only identity used by GitHub Actions. It is separate from runtime identities. |
 | Workload Identity Pool | `github-actions` | Trust boundary allowing external GitHub OIDC identities to exchange tokens for Google credentials. |
 | WIF provider | `github` | Trusts GitHub's OIDC issuer and restricts trust to `bayes-institute/bayes-learning-platform`. |
@@ -198,7 +198,7 @@ flowchart TD
     CR2[Deploy bayes-server]
     CRA[bayes-client-runtime]
     SRA[bayes-server-runtime]
-    FS[(Firestore)]
+    DB[(Application database)]
 
     GH -->|OIDC token| WIF
     WIF -->|short-lived Google credential| DEP
@@ -206,7 +206,7 @@ flowchart TD
     DEP --> CR2
     CR1 -->|runs as| CRA
     CR2 -->|runs as| SRA
-    SRA -->|least-privilege data access| FS
+    SRA -->|least-privilege data access| DB
 ```
 
 ### `bayes-github-deployer`
@@ -219,7 +219,7 @@ This is the identity of the running client container. It should not receive broa
 
 ### `bayes-server-runtime`
 
-This is the identity of the running API. When the server needs Firestore, IAM is granted here (for example `roles/datastore.user`) rather than to the deployer.
+This is the identity of the running API. When a feature needs persistence, grant only the provider-specific permission here rather than to the deployer or client.
 
 This is the principle of least privilege in practical form: **the actor that deploys software and the software that handles requests are different security principals.**
 
@@ -354,8 +354,8 @@ Do **not** rerun these just because you move to another computer:
 
 ```text
 Creating/enabling the Firebase/Google Cloud project
-Creating Firestore
-Choosing Firestore location
+Creating an application database
+Choosing the application database location
 Enabling project APIs (unless a genuinely new API is needed)
 Creating bayes-containers Artifact Registry
 Creating Artifact Registry cleanup policies
@@ -768,7 +768,7 @@ These are **application smoke tests**. They prove that traffic can reach the app
 
 They are not Compute Engine health checks attached to the serverless NEGs. Serverless NEGs do not use that traditional health-check model.
 
-A successful `/health` also does **not** prove that Firebase authentication, Firestore authorization, or protected routes are correctly configured. Those require separate functional tests.
+A successful `/health` also does **not** prove that Firebase authentication, API authorization, or protected routes are correctly configured. Those require separate functional tests.
 
 ---
 
@@ -813,7 +813,7 @@ gcloud run services update-traffic bayes-server \
 
 ### Browser Firebase configuration is not an Admin secret
 
-`NEXT_PUBLIC_FIREBASE_*` values are browser configuration. Security must come from Firebase Authentication, Firestore Rules, application authorization, App Check where used, and server-side validation—not from hiding the Firebase web API key.
+`NEXT_PUBLIC_FIREBASE_*` values are browser configuration. Security must come from Firebase Authentication, API authorization, server-side validation, and feature-level rate and cost controls—not from hiding the Firebase web API key.
 
 ### Never ship Firebase Admin JSON in a container
 
@@ -852,7 +852,7 @@ flowchart TD
     LB[ALB + NEGs + backend services + static IP]
     TLS[Certificate Manager]
     DNS[Cloudflare DNS]
-    DATA[Firebase Auth + Firestore]
+    DATA[Firebase Auth + application database]
 
     OFF -.does not remove.-> GH
     OFF -.does not remove.-> GCP
@@ -893,7 +893,7 @@ When moving from Windows to Ubuntu, this is the concise checklist to follow.
 ### Do not repeat merely because the laptop changed
 
 - [ ] Do **not** recreate the project.
-- [ ] Do **not** recreate Firestore.
+- [ ] Do **not** recreate an application database without an approved persistence design.
 - [ ] Do **not** recreate Artifact Registry.
 - [ ] Do **not** recreate service accounts or IAM bindings.
 - [ ] Do **not** recreate WIF.
@@ -986,13 +986,13 @@ flowchart TD
 
     subgraph DATA[Identity and Data]
         AUTH[Firebase Authentication]
-        FS[(Cloud Firestore)]
+        DB[(Application database)]
     end
 
     CLIENT --> AUTH
     CLIENT -->|API calls via api.bayesinstitute.com| ALB
     SERVER --> AUTH
-    SERVER --> FS
+    SERVER --> DB
 
     classDef added fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     class CARMOR,SARMOR added
@@ -1002,7 +1002,7 @@ flowchart TD
 
 ## 19. The architecture in one sentence
 
-**A developer pushes independently buildable Next.js and FastAPI applications to GitHub; CI validates them, protected CD authenticates to Google through keyless OIDC/WIF, stores immutable images in Artifact Registry, and deploys two bounded, scale-to-zero Cloud Run services whose public traffic enters one TLS-enabled global Application Load Balancer, passes through the matching backend-specific Cloud Armor policy before a serverless NEG reaches Cloud Run, and uses Firebase Authentication/Firestore for identity and application data.**
+**A developer pushes independently buildable Next.js and FastAPI applications to GitHub; CI validates them, protected CD authenticates to Google through keyless OIDC/WIF, stores immutable images in Artifact Registry, and deploys two bounded, scale-to-zero Cloud Run services whose public traffic enters one TLS-enabled global Application Load Balancer, passes through the matching backend-specific Cloud Armor policy before a serverless NEG reaches Cloud Run, and uses Firebase Authentication for identity plus backend API contracts for application data.**
 
 ---
 
@@ -1024,7 +1024,7 @@ For day-to-day work, think of the sources of truth this way:
 | TLS | Certificate Manager certificate + map |
 | DNS | Cloudflare DNS |
 | User identity | Firebase Authentication |
-| Durable application data | Firestore |
+| Durable application data | Server-side database behind FastAPI; provider selected per feature |
 | Local developer configuration | ignored `.env` files + local ADC/credential configuration |
 
 The main lesson is that **changing laptops changes only the final row** (and your local CLI/tooling). It does not recreate the production architecture.

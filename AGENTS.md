@@ -13,3 +13,8 @@
 - Keep dependencies directional: UI/route boundary -> feature logic -> repository/integration. Avoid circular feature dependencies.
 - Prefer domain-specific names and errors over generic verbs or types. Refactor for cognitive complexity and mixed responsibilities, not line count alone.
 - Colocate behavior tests with a feature when useful; top-level tests are also valid, especially for system or end-to-end behavior. Comments explain non-obvious why, constraints, or invariants.
+
+# Data access
+
+- Treat the application database as a server-side implementation detail. Client code gets application data only through documented backend API contracts; it must not import a database SDK or query a database directly.
+- Keep each feature's persistence behind a server-side repository or integration with domain-shaped inputs and outputs. Do not expose provider records or query details in API contracts, so a provider such as temporary Firestore can later be replaced by Cloud SQL without a client migration.

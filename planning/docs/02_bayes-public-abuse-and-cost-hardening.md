@@ -27,7 +27,7 @@ The important additions are:
 2. **Load-balancer request logging** makes those decisions visible, so rate limits can be tuned using evidence rather than guesswork.
 3. **Cloud Run ingress is load-balancer-only**, so the generated `run.app` service URL is not a bypass around Armor and ALB logging.
 4. **Cloud Run limits are declared in CD**: minimum instances, maximum instances, concurrency, memory, CPU, and timeout are reasserted on every production deployment.
-5. **Firebase/Firestore and application boundaries are clearer**: direct browser Firestore access is deny-by-default, and FastAPI has a reusable verified-email boundary for future costly or ownership-changing operations.
+5. **Application data is now provider-neutral**: the browser obtains it only through FastAPI contracts, while feature repositories keep persistence implementation details on the server.
 6. **Billing and operational signals exist as an early-warning system**, not as a magical spending ceiling.
 
 That is the central lesson: public safety comes from **several small, correctly placed limits**, not one “security setting.”
@@ -55,7 +55,7 @@ flowchart TD
     CLIENT[bayes-client Cloud Run<br/>Next.js]
     SERVER[bayes-server Cloud Run<br/>FastAPI]
     AUTH[Firebase Authentication]
-    FS[(Cloud Firestore)]
+    DB[(Application database)]
 
     B --> DNS --> IP --> ALB --> ROUTE
     ROUTE -->|root or www| CB --> CARMOR --> CNEG --> CLIENT
@@ -64,7 +64,7 @@ flowchart TD
     SB -.writes evidence.-> SLOG
     CLIENT --> AUTH
     SERVER --> AUTH
-    SERVER --> FS
+    SERVER --> DB
 
     classDef added fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#173f20
     class CARMOR,SARMOR,CLOG,SLOG added
@@ -119,7 +119,7 @@ Rate limiting is deliberately first because it is the cheapest place to decline 
 
 ## 4. Cloud Armor: an edge cost control, not a user quota
 
-Cloud Armor gives the load balancer a chance to decline a request before Cloud Run starts a container, verifies a token, queries Firestore, or calls a future paid service. This is why it reduces both abuse risk and cost exposure.
+Cloud Armor gives the load balancer a chance to decline a request before Cloud Run starts a container, verifies a token, queries a database, or calls a future paid service. This is why it reduces both abuse risk and cost exposure.
 
 The initial policy design separates route classes:
 
@@ -221,30 +221,28 @@ verified email required only where the route chooses it
 
 That nuance matters. The helper does not retroactively make every existing route require a verified email, and verified email by itself does not grant a role or entitlement. A future expensive route should opt into this stricter dependency and still implement its own authorization and quota rules.
 
-## 8. Firestore is deliberately closed to direct browser traffic
+## 8. Database access is an API boundary
 
-The repository now carries a versioned `firestore.rules` source and a protected production deployment workflow. Its current rule is intentionally simple: direct reads and writes to the default Firestore database are denied.
+The repository no longer carries a database Rules source or deployment workflow. The browser gets application data only through documented FastAPI contracts, and persistence stays behind a server-side feature repository or integration.
 
 ```mermaid
 flowchart TD
     BROWSER[Browser]
-    RULES[Firestore Rules<br/>current default: deny direct read/write]
-    DENY[Direct browser operation denied]
+    CONTRACT[Documented FastAPI contract]
     API[FastAPI]
     TOKEN[Firebase verification + authorization]
     RUNTIME[bayes-server-runtime<br/>least-privilege server identity]
-    DB[(Cloud Firestore)]
+    DB[(Application database)]
 
-    BROWSER --> RULES --> DENY
-    BROWSER -->|approved API request| API --> TOKEN --> RUNTIME --> DB
+    BROWSER --> CONTRACT --> API --> TOKEN --> RUNTIME --> DB
 
     classDef added fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#173f20
-    class RULES,DENY added
+    class CONTRACT,API added
 ```
 
-This does not mean Firestore is unusable. It means that, today, all data access must pass through a server boundary where identity, authorization, and future feature-cost limits can be enforced deliberately.
+The client must not import a database SDK, issue database queries, or receive provider records in API responses. FastAPI verifies identity and authorization, invokes the owning feature service, and returns a domain-shaped contract.
 
-When a browser-direct Firestore feature is genuinely needed, it is a new design task: write narrowly scoped rules, test them, deploy them through the versioned process, and introduce Firebase App Check in observation mode before enforcement. Do not weaken the deny-all rule simply to make a prototype convenient.
+Firestore may be introduced as a temporary server-side provider, but its queries, records, configuration, and migrations remain confined to that feature’s repository/integration. A Cloud SQL migration then changes the server implementation and runtime configuration without changing browser code or backend API contracts. Removing the repository workflow does not alter live cloud resources; a cloud administrator must separately inventory and retire unused Firestore IAM grants or resources.
 
 ## 9. Budgets and logs make the architecture observable, not invincible
 
@@ -258,7 +256,7 @@ It creates time for a human decision. Automatic billing disablement would shut d
 
 The load balancer records 100% of requests while public traffic is new and Armor limits are being learned. This is intentionally more observability than the long-term steady state may need. Once a normal baseline exists, logging can be sampled thoughtfully while retaining security-policy and error visibility.
 
-Never turn observability into a data leak. Request logs must not contain bearer tokens, session cookies, authorization headers, raw request bodies, Firestore documents, learner answers, or other sensitive application content.
+Never turn observability into a data leak. Request logs must not contain bearer tokens, session cookies, authorization headers, raw request bodies, database records, learner answers, or other sensitive application content.
 
 ## 10. Which work belongs to the cloud, the deployment workflow, and a laptop?
 
@@ -267,11 +265,11 @@ This distinction from the first document matters even more after hardening.
 | Kind of work | Examples from this chapter | What happens when you get a new laptop? |
 | --- | --- | --- |
 | **One-time cloud state** | Cloud Armor policies, their attachment to backend services, ALB logging, a billing budget, monitoring/alert configuration | It remains in Google Cloud. Inspect it; do not recreate duplicates. |
-| **Versioned, continuously asserted state** | Cloud Run ingress, min/max instances, concurrency, memory, timeout, production health-check target, Firestore Rules source | It lives in Git and is reapplied by protected GitHub CD. A new laptop only needs Git access to contribute changes. |
+| **Versioned, continuously asserted state** | Cloud Run ingress, min/max instances, concurrency, memory, timeout, production health-check target | It lives in Git and is reapplied by protected GitHub CD. A new laptop only needs Git access to contribute changes. |
 | **Ongoing operational judgement** | Armor threshold tuning, WAF preview decisions, log sampling, anomaly recipient testing, quota choices, incident response | It is not “finished forever.” Revisit it with evidence as real traffic and features change. |
 | **Per-machine setup** | `gcloud auth login`, `gcloud config set project`, repository clone, local ADC or secured credentials, ignored `.env` files | Repeat it on every Windows, Linux, or replacement machine. It does not alter the production architecture by itself. |
 
-The same laptop-independent principle still applies: production continues when every laptop is off. Cloud resources, GitHub workflows, Cloud Run revisions, IAM, Firestore rules releases, and the load balancer are not hosted on the development machine.
+The same laptop-independent principle still applies: production continues when every laptop is off. Cloud resources, GitHub workflows, Cloud Run revisions, IAM, and the load balancer are not hosted on the development machine.
 
 ## 11. What changed in the delivery flow
 
@@ -348,7 +346,7 @@ For the exact one-time commands, validation criteria, rate-limit change procedur
 
 ## 14. The architecture in one sentence, updated
 
-**A developer pushes independently buildable Next.js and FastAPI applications to GitHub; protected CI/CD deploys bounded, scale-to-zero Cloud Run revisions through keyless OIDC/WIF, while all public traffic enters one TLS-enabled global load balancer, passes through a backend-specific Cloud Armor policy and observable request path before reaching Cloud Run, and relies on Firebase authentication, FastAPI authorization, deny-by-default Firestore Rules, and human-reviewed cost signals for the controls the edge cannot provide.**
+**A developer pushes independently buildable Next.js and FastAPI applications to GitHub; protected CI/CD deploys bounded, scale-to-zero Cloud Run revisions through keyless OIDC/WIF, while all public traffic enters one TLS-enabled global load balancer, passes through a backend-specific Cloud Armor policy and observable request path before reaching Cloud Run, and relies on Firebase authentication, FastAPI authorization, backend API data contracts, and human-reviewed cost signals for the controls the edge cannot provide.**
 
 ## 15. What remains intentionally unfinished
 
@@ -356,7 +354,7 @@ Hardening is a practice, not a final switch. The following are deliberately futu
 
 - Tune Armor thresholds only from representative traffic and shared-IP evidence; preview any new WAF signature before enforcement.
 - Verify that budget/anomaly alerts reach an independent, monitored recipient and rehearse the response path.
-- Add Firebase App Check when a browser-direct Firebase feature needs it; monitor first, then enforce after legitimate clients are proven to work.
+- Keep all application-database access behind documented backend API contracts as new features are introduced.
 - Give every new database, upload, export, search, AI, or payment feature its own cost controls at design time.
 - Review the bounded Cloud Run settings when measured product demand changes — never raise capacity merely because a spike is uncomfortable.
 

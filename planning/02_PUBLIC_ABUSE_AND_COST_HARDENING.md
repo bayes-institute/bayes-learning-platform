@@ -1,8 +1,8 @@
 # Bayes Learning Platform — Public Abuse and Cost-Resistance Runbook
 
-> **Purpose.** Complete this runbook before inviting a broad public audience to Bayes. It turns the current Cloudflare DNS → Google global Application Load Balancer → Cloud Run architecture into a bounded, observable public entry point. It is designed to make a single malicious browser, a misbehaving script, or an unexpected traffic burst unable to turn into unbounded Cloud Run or Firestore spending.
+> **Purpose.** Complete this runbook before inviting a broad public audience to Bayes. It turns the current Cloudflare DNS → Google global Application Load Balancer → Cloud Run architecture into a bounded, observable public entry point. It is designed to make a single malicious browser, a misbehaving script, or an unexpected traffic burst unable to turn into unbounded Cloud Run or application-database spending.
 
-> **Scope.** This is an operational hardening runbook. It does not claim that public services can be made impossible to attack, nor does it replace Firebase authorization, Firestore Security Rules, input validation, or feature-specific quotas. Its job is to reduce blast radius, reject obvious abuse before Cloud Run, and make a problem visible and reversible quickly.
+> **Scope.** This is an operational hardening runbook. It does not claim that public services can be made impossible to attack, nor does it replace Firebase authorization, server-side input validation, or feature-specific quotas. Its job is to reduce blast radius, reject obvious abuse before Cloud Run, and make a problem visible and reversible quickly.
 
 Current project: `bayes-institute`  
 Primary region: `asia-south1`  
@@ -23,7 +23,7 @@ flowchart LR
     ARMOR --> CLIENT[bayes-client backend<br/>Cloud Run]
     ARMOR --> API[bayes-server backend<br/>Cloud Run]
     API --> AUTH[Firebase Auth<br/>server authorization]
-    API --> DB[(Firestore)]
+    API --> DB[(Application database)]
 ```
 
 The controls have distinct purposes:
@@ -32,9 +32,8 @@ The controls have distinct purposes:
 | --- | --- | --- |
 | Cloud Armor at the ALB | Request floods, obvious web attacks, and per-IP request-rate abuse before Cloud Run starts work | Authentication or per-user authorization |
 | Cloud Run service-level maximum | Compute and concurrent database-connection expansion during a surge | A request quota; queued work can still be processed |
-| Firebase Auth and FastAPI | Calls that do not have a valid identity or are not authorized for an operation | Rate limits or Firestore Rules |
-| Firebase App Check | Requests from unverified app instances to supported Firebase services | Authentication, authorization, or bot-proofing |
-| Firestore Security Rules | Unauthorized direct browser access to Firestore | Server-side authorization or spend limits |
+| Firebase Auth and FastAPI | Calls that do not have a valid identity or are not authorized for an operation | Rate limits, input validation, or feature quotas |
+| Backend API and feature repository | Direct browser database access and provider-specific data models | Server-side authorization or spend limits |
 | Budgets, anomalies, and alerts | Early warning and an explicit human response path | A guaranteed billing ceiling |
 
 Do not rely on a single layer. In particular, a Cloud Billing budget alert does not automatically stop usage or charges. Google documents budgets as alerts unless a separate programmatic response or applicable spend-cap configuration is deliberately enabled.
@@ -52,7 +51,7 @@ This table records the observed production state before this hardening work. Re-
 | Backend logging | Disabled | Enable it before previewing or enforcing any Armor rule. |
 | Cloud Armor | No policy exists or is attached | Create policies in preview, observe, then enforce the documented initial thresholds. |
 | Public API surface today | `/health` and `/v1/authenticated-user`; the latter requires a Firebase bearer token | Keep unauthenticated endpoints dependency-free and inexpensive. Do not add a costly anonymous endpoint. |
-| Firestore policy source | The repository has a versioned deny-all [`firestore.rules`](../firestore.rules) source and protected GitHub deployment workflow; the live default-database release matches it | Treat direct browser Firestore access as out of scope until feature-specific rules are authored, tested, reviewed, and deployed. |
+| Application data access | No database provider is configured in the repository | Keep browser data access behind documented FastAPI contracts; add provider-specific persistence only in a server-side feature repository. |
 
 Inspect the state with:
 
@@ -103,7 +102,7 @@ In Cloud Monitoring, create an alert policy for each of these conditions. Send n
 | Cloud Run request count | 5× expected normal rate for 5 minutes | Detects a flood that remains under one client’s rate limit. |
 | Cloud Run instance count | Any sustained use of all 3 allowed instances | The cost and availability guard is active; investigate before raising it. |
 | Cloud Run latency | p95 exceeds the agreed launch target | Distinguishes an attack from normal cold-start behavior. |
-| Firestore reads/writes | Unexpected increase against the feature baseline | Database operations can cost more than the incoming request count suggests. |
+| Database operations | Unexpected increase against the feature baseline | Database operations can cost more than the incoming request count suggests. |
 | Billing cost or anomaly | 20%, 50%, 80%, and 100% of the monthly public-launch budget | A decision point, not an automatic cap. |
 
 Use the following log query while previewing policies; it is also the first query to run during an abuse event:
@@ -128,7 +127,7 @@ These are deliberately conservative public-launch starting points, not permanent
 | `bayes-client-backend` — `POST /api/auth/session` | Source IP | 10 requests / 60 seconds | 429 throttle | Session-cookie minting verifies a Firebase token and should never be hammered. |
 | `bayes-client-backend` — all other requests | Source IP | 240 requests / 60 seconds | 429 throttle | Permits normal page assets/navigation while limiting a simple browser loop. |
 | `bayes-server-backend` — `/health` | Source IP | 30 requests / 60 seconds | 429 throttle | Allows monitoring but prevents health checks becoming the highest-cost public route. |
-| `bayes-server-backend` — all other API requests | Source IP | 60 requests / 60 seconds | 429 throttle | The API is the route that will later drive Firestore writes and expensive features. |
+| `bayes-server-backend` — all other API requests | Source IP | 60 requests / 60 seconds | 429 throttle | The API is the route that will later drive database work and expensive features. |
 
 The policies use `IP`, not an arbitrary `X-Forwarded-For` header. In the current DNS-only topology, the global load balancer observes the client source address. Do not change this key casually: client identity choices determine how attackers can split or spoof rate-limit buckets.
 
@@ -248,13 +247,13 @@ Cloud Run limits are a second line of defense after Cloud Armor. They cannot eli
 
 1. Keep `--min 0` for both services during public launch.
 2. Keep the **service-level** maximum at `3` for both services. Do not raise it to solve a traffic spike until the source is understood and the expected cost is acceptable.
-3. Retain the current concurrency values initially: `40` for the lightweight Next.js client and `20` for the FastAPI API. Lower API concurrency if a future endpoint is CPU-heavy or creates too many Firestore operations; validate under load before changing it.
+3. Retain the current concurrency values initially: `40` for the lightweight Next.js client and `20` for the FastAPI API. Lower API concurrency if a future endpoint is CPU-heavy or creates too many database operations; validate under load before changing it.
 4. Ensure future workflow edits retain `--min 0 --max 3`, `--cpu`, memory, concurrency, and request timeout values explicitly. A console-only change can drift from the next GitHub deployment.
-5. Give expensive operations short, explicit timeouts and a bounded request body before they invoke Firestore, storage, a third-party API, or any future model provider. This is a code requirement for the feature that introduces the cost, not a health-check concern.
+5. Give expensive operations short, explicit timeouts and a bounded request body before they invoke a database, storage, a third-party API, or any future model provider. This is a code requirement for the feature that introduces the cost, not a health-check concern.
 
 The service-level maximum is the stronger steady-state guard in the observed configuration. The stale revision-level `maxScale: 20` should converge to `3` on the next normal deployment; do not raise the service-level setting to match it.
 
-## 8. Firebase, Firestore, and feature gates
+## 8. Firebase, database access, and feature gates
 
 ### 8.1 Firebase Authentication
 
@@ -268,23 +267,24 @@ Before public invitation, in Firebase Authentication:
 
 The existing FastAPI `/v1/authenticated-user` boundary already verifies a bearer token. Every future API route must use the same dependency or an equally strict, tested replacement.
 
-### 8.2 Firebase App Check rollout
+### 8.2 Request attestation is a separate, API-level decision
 
-App Check is useful for reducing direct scripted use of Firebase services from unverified clients. For the web client, prefer reCAPTCHA Enterprise over reCAPTCHA v3 when the product is ready to integrate it; Enterprise has stronger fraud signals, but its usage and pricing must be monitored.
+For a route whose risk justifies it, add request attestation at the API boundary and monitor it before enforcement. It complements, but never replaces, Firebase Authentication, application authorization, rate limits, and feature quotas.
 
 Roll it out in this order:
 
-1. Register the production web app in Firebase App Check and integrate the chosen web provider in the client.
-2. Observe App Check metrics in monitoring mode. Do not enforce while legitimate production traffic is unverified.
-3. Enforce App Check for Cloud Firestore before the browser is allowed to read or write learner data directly.
-4. Evaluate Authentication enforcement separately and test every chosen OAuth provider, session refresh, and sign-out flow before enabling it.
-5. For future FastAPI endpoints, verify App Check tokens server-side only when the endpoint’s risk justifies the added integration; App Check does not replace Firebase Authentication or application authorization.
+1. Define the route-level threat model and choose an appropriate attestation provider.
+2. Observe legitimate production traffic before enforcement.
+3. Verify attestations at the FastAPI boundary only for the selected routes.
+4. Test each sign-in provider, session refresh, and sign-out flow before enforcement.
 
-### 8.3 Firestore rules are a launch gate for direct browser data access
+### 8.3 Database access is an API boundary
 
-The default Firestore database is governed by the versioned [`firestore.rules`](../firestore.rules) source, which deliberately denies every direct browser read and write. Therefore, do **not** add client-side Firestore reads or writes as a convenience while implementing features.
+The browser must not import a database SDK, use database rules as application authorization, or query application data directly. It receives application data only from documented FastAPI contracts. Each protected route verifies the Firebase identity, authorizes the operation, calls the feature service, and returns a domain-shaped response.
 
-Before the first direct browser Firestore feature, add a reviewed and tested Rules source file plus deployment process. The default model should be deny-by-default. A learner may read only published content and their own permitted data; they must never read another learner’s progress or write course definitions, roles, scores, or entitlements. Privileged mutations, grading, publishing, payments, and ownership changes stay in the FastAPI service and require server-side authorization.
+Provider-specific persistence belongs in a server-side repository or integration owned by that feature. Keep database records, query syntax, provider identifiers, connection details, and migrations out of API contracts. Firestore may be introduced as a temporary server-side provider, but a later Cloud SQL migration must replace only that repository/integration and its runtime configuration—not browser code or API contracts.
+
+The removed Firestore Rules source and deployment workflow are no longer part of this repository. Removing them does not change any live Google Cloud release or IAM binding. A cloud administrator must separately inventory and retire unused Firestore resources and permissions; do not remove a live database or broaden its access as an incidental repository cleanup.
 
 ### 8.4 Endpoint cost classification is required before each feature
 
@@ -295,7 +295,7 @@ Every new public route must be classified in its design/PR before it is deployed
 | Cheap | `/health`, static landing content | No database or third-party work; edge rate limit only. |
 | Identity | Session create/delete, sign-in callback | Same-origin protection, Firebase token verification, low IP rate limit, audit logging. |
 | Learner read | Profile, progress, published lesson | Authentication, ownership checks, pagination, read-cost estimate, per-user limit when needed. |
-| Learner write | Submit answer, update progress | Authentication, authorization, idempotency key or attempt constraint, per-user limit, bounded document reads/writes. |
+| Learner write | Submit answer, update progress | Authentication, authorization, idempotency key or attempt constraint, per-user limit, bounded database reads/writes. |
 | Expensive | Upload, search, reporting, AI, exports, payments | Authentication, per-user/day quota, payload size cap, timeout, concurrency cap, cost estimate, audit event, and explicit product-owner approval. |
 
 The edge can rate-limit an IP but cannot reliably identify a Firebase user before authentication. Per-user quotas, idempotency, and "one submission per attempt" constraints are application/data-model work and must be implemented with the feature itself.
@@ -312,28 +312,28 @@ Also enable cost anomaly notifications. If alerts are not watched promptly, conn
 
 ### 9.2 Apply quota intentionally
 
-In Google Cloud Console, review project quotas for Cloud Run, Firestore, Artifact Registry, Cloud Logging, and any future AI or storage service. Keep quotas comfortably above ordinary launch traffic but below a clearly unacceptable accidental-spend level. Record each quota decision, the intended feature load, and the recovery owner.
+In Google Cloud Console, review project quotas for Cloud Run, Artifact Registry, Cloud Logging, and each database, AI, or storage provider a feature actually uses. Keep quotas comfortably above ordinary launch traffic but below a clearly unacceptable accidental-spend level. Record each quota decision, the intended feature load, and the recovery owner.
 
 Do not use a quota reduction that makes deployment, login, or incident recovery impossible. The goal is a controlled failure mode (429 or temporary unavailability), not a surprise production outage.
 
 | Service | Current launch decision | Intended feature load | Recovery owner |
 | --- | --- | --- | --- |
 | Cloud Run, `asia-south1` | Do not reduce the broad regional CPU or memory quota. The two service-level maximums of `3` bound public compute to six 1-vCPU / 512-MiB instances, while preserving deployment and recovery headroom. | Next.js client and FastAPI API only. | Project owner |
-| Firestore | Do not add a quota preference. The default database has fixed daily free quotas of 50,000 reads, 20,000 writes, and 20,000 deletes; direct browser access is denied until a feature-specific ruleset exists. | No direct browser data feature. | Project owner |
+| Application database | Do not provision or tune a database quota until a server-side persistence feature is approved. Choose provider limits from the feature’s measured read/write and connection requirements. | No direct browser data feature. | Project owner |
 | Artifact Registry | Do not reduce API-rate quotas. Preserve the ability to build, push, and roll back immutable release images. | Two container images per release. | Project owner |
 | Cloud Logging | Keep the 30-day default-log retention and 400-day required-audit retention. Revisit sampling only after a normal traffic baseline. | ALB and security investigation during launch. | Project owner |
 
 ### 9.3 Keep logs inexpensive and useful
 
-Use 100% ALB logging during initial traffic and Armor tuning. After a normal baseline exists, retain security-policy and error visibility while choosing an appropriate sample rate. Never log Firebase bearer tokens, session cookies, authorization headers, Firestore document contents, student answers, or raw request bodies.
+Use 100% ALB logging during initial traffic and Armor tuning. After a normal baseline exists, retain security-policy and error visibility while choosing an appropriate sample rate. Never log Firebase bearer tokens, session cookies, authorization headers, database records, student answers, or raw request bodies.
 
-**Current launch control.** Both ALB backends have logging enabled with a sample rate of `1.0`. The application does not emit request headers, tokens, cookies, request bodies, Firestore data, or learner answers to logs.
+**Current launch control.** Both ALB backends have logging enabled with a sample rate of `1.0`. The application does not emit request headers, tokens, cookies, request bodies, database data, or learner answers to logs.
 
 ## 10. Abuse response playbook
 
 Use this sequence for an active request spike:
 
-1. Confirm whether the ALB, Cloud Run, or Firestore metric is rising; do not assume a social-media spike is malicious.
+1. Confirm whether the ALB, Cloud Run, or database metric is rising; do not assume a social-media spike is malicious.
 2. Check Cloud Armor logs for the top matching rule, source IPs, paths, response codes, and whether traffic is previewed or enforced.
 3. If one source is clearly abusive, add a narrow, time-bounded deny rule at a priority above rate limits. Document the source, timestamp, evidence, and expiry plan.
 4. If many sources are abusive, temporarily lower the relevant enforced rate threshold rather than creating a large IP block list.
@@ -341,7 +341,7 @@ Use this sequence for an active request spike:
 6. Check billing and anomaly notifications, preserve logs, and record the incident before relaxing any rule.
 7. Remove temporary blocks only after the underlying feature/rate policy has been corrected and tested.
 
-Never respond to a suspected attack by disabling Firebase Rules, widening CORS, granting a broad IAM role, exposing a service-account key, or raising Cloud Run maximum instances blindly.
+Never respond to a suspected attack by widening CORS, granting a broad IAM role, exposing a service-account key, or raising Cloud Run maximum instances blindly.
 
 ## 11. Public-launch acceptance checklist
 
@@ -356,7 +356,7 @@ Do not mark the platform public-ready until every applicable item is checked.
 - [ ] Cloud Run remains at service-level minimum `0` and maximum `3`; no deployment workflow can silently remove these bounds.
 - [ ] The production workflow uses `internal-and-cloud-load-balancing` ingress and smoke-tests the custom domains, not direct `run.app` URLs.
 - [ ] Firebase authorized domains/providers are reviewed; every protected API route verifies Firebase identity and authorizes the action.
-- [ ] No direct browser Firestore use exists without versioned, tested, deny-by-default Firestore Rules and App Check enforcement.
+- [ ] Every application-data path uses a documented backend API contract; client code has no database SDK or direct database query.
 - [ ] Monthly budget, forecast alerts, anomaly notifications, and their recipients have been tested.
 - [ ] A human owner has practiced the abuse-response playbook and knows how to inspect, tighten, and roll back an Armor rule.
 
@@ -366,6 +366,5 @@ Do not mark the platform public-ready until every applicable item is checked.
 - [Configure Cloud Armor rate limiting](https://cloud.google.com/armor/docs/configure-rate-limiting)
 - [Cloud Run maximum instances and cost safeguards](https://cloud.google.com/run/docs/configuring/max-instances)
 - [Set up a global external Application Load Balancer with Cloud Run](https://cloud.google.com/load-balancing/docs/https/setup-global-ext-https-serverless)
-- [Firebase App Check for web](https://firebase.google.com/docs/app-check/web/recaptcha-provider)
 - [Cloud Billing budgets and alerts](https://cloud.google.com/billing/docs/how-to/budgets)
 - [Cloud Billing programmatic notifications](https://cloud.google.com/billing/docs/how-to/budgets-programmatic-notifications)

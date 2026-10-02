@@ -4,3 +4,4 @@
 - Colocate a feature's components, hooks, API clients, schemas, state, types, and styles. Feature tests are optional; create shared components or hooks only for a clear cross-feature role.
 - Split components by semantic UI responsibility when cognitive complexity grows; do not extract meaningless wrappers merely to reduce line count.
 - Prefer colocated CSS Modules for feature styles. Use global CSS only for application-wide foundations. Keep client/server component boundaries explicit and limit client components to interactive leaves.
+- Obtain application data through the owning feature's backend API client and its contracts. Do not add database SDKs, direct database queries, or provider data models to client code.
