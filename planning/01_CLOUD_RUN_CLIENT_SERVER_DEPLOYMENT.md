@@ -308,7 +308,138 @@ Invoke-WebRequest "$ServerUrl/health"
 
 5. Test client sign-in; server rejection without a bearer token; server authorization with a valid token; Firestore Rules; App Check; CORS; logs; and error reporting.
 6. Confirm that both services use request-based billing, service-level minimum zero, and maximum three.
-7. Only after the run.app URLs pass, add the client and API custom domains through the chosen Cloudflare/Cloud Run domain setup. Keep client and API on separate hostnames, and bypass Cloudflare caching for authenticated HTML and all API paths.
+7. Only after the run.app URLs pass, continue to Step 11 to add the production client and API hostnames.
+
+## Step 11 â€” publish `bayesinstitute.com` through Cloudflare and a global external Application Load Balancer
+
+Cloud Run domain mappings are not available in `asia-south1` and are not the production path for this project. Use one global external Application Load Balancer (ALB) with regional serverless NEGs instead. The ALB supplies one static IP address, a Google-managed TLS certificate, and hostname routing to the two Cloud Run services.
+
+The resulting public topology is:
+
+| Public hostname | Destination | Purpose |
+| --- | --- | --- |
+| `https://bayesinstitute.com` | `bayes-client` | Client entry point; keep it working alongside `www` initially. |
+| `https://www.bayesinstitute.com` | `bayes-client` | Canonical browser origin used by the application. |
+| `https://api.bayesinstitute.com` | `bayes-server` | Browser API origin. |
+
+All three hostnames resolve to the same ALB address. The ALB routes `api.bayesinstitute.com` to the server backend and all other hosts to the client backend. This keeps browser and API traffic on separate origins, which makes CORS and future API policy changes clear.
+
+### 11.1 Prerequisites and guardrails
+
+Perform these operations with a human Google Cloud administrator account, not the GitHub deployment service account. The account needs Network Admin, Compute Instance Admin (v1), and Security Admin capabilities to create the load balancer, serverless NEGs, reserved address, and certificate. Do not grant these broad infrastructure roles to `bayes-github-deployer`.
+
+~~~powershell
+$ProjectId = "bayes-institute"
+$Region = "asia-south1"
+gcloud config set project $ProjectId
+gcloud services enable compute.googleapis.com
+~~~
+
+The ALB has a standing cost even when both Cloud Run services have scaled to zero. It is the right trade-off here for managed TLS, reliable custom-domain routing, and the option to prevent direct access to the `run.app` URLs later.
+
+Do not change Cloud Run ingress yet. Leave both services at `all` until the custom hostnames, TLS certificate, and application checks below pass. The production workflow currently sets `--ingress all`, so a manual console ingress change would be undone by the next deployment.
+
+### 11.2 Create the two serverless NEGs
+
+In Google Cloud Console, open **Network services â†’ Load balancing** and begin creating a **Global external Application Load Balancer**. When prompted to create the serverless backends, create these regional serverless NEGs; each must be in the same region as its Cloud Run service:
+
+| NEG name | Region | Cloud Run service | Backend service name |
+| --- | --- | --- | --- |
+| `bayes-client-neg` | `asia-south1` | `bayes-client` | `bayes-client-backend` |
+| `bayes-server-neg` | `asia-south1` | `bayes-server` | `bayes-server-backend` |
+
+Select **Serverless network endpoint group** as the backend type and **Cloud Run** as the serverless target. Do not add a Compute Engine health check: serverless NEGs do not use one. The application-level `GET /health` checks remain the deployment and smoke-test health checks.
+
+### 11.3 Create the HTTPS load balancer and routing rules
+
+Create the load balancer with these settings:
+
+| Area | Required setting |
+| --- | --- |
+| Type | Application Load Balancer â†’ Public facing (external) â†’ Best for global workloads â†’ Global external Application Load Balancer |
+| Name | `bayes-public-lb` |
+| Frontend | HTTPS, Premium tier, IPv4, port 443 |
+| Static IP | Reserve a new global IPv4 address named `bayes-public-ip` |
+| Certificate | New Google-managed certificate named `bayes-public-cert` for `bayesinstitute.com`, `www.bayesinstitute.com`, and `api.bayesinstitute.com` |
+| HTTP | Enable the built-in HTTP-to-HTTPS redirect on port 80 while creating the HTTPS frontend |
+| Default backend | `bayes-client-backend` |
+| Host rule | `api.bayesinstitute.com` â†’ `bayes-server-backend` for all paths |
+
+Keep the default route on `bayes-client-backend`; it serves both `bayesinstitute.com` and `www.bayesinstitute.com`. Enable backend logging during creation. Do not enable Cloud CDN for the API backend. Leave Cloud CDN off for the client until cache-control behavior and authenticated pages have been reviewed.
+
+After creating the frontend, obtain the fixed IP address and confirm the certificate is provisioning:
+
+~~~powershell
+$LoadBalancerIp = gcloud compute addresses describe bayes-public-ip --global --format="value(address)"
+$LoadBalancerIp
+gcloud compute ssl-certificates describe bayes-public-cert --global
+~~~
+
+### 11.4 Point Cloudflare DNS directly at the load balancer
+
+Before changing DNS, record the existing `@`, `www`, and `api` records so they can be restored during a rollback. Do not alter MX, TXT, DKIM, SPF, DMARC, or unrelated Cloudflare records. In Cloudflare DNS for `bayesinstitute.com`, create or replace only these records, replacing `LOAD_BALANCER_IP` with the value from the preceding command:
+
+| Type | Name | Content | Proxy status |
+| --- | --- | --- | --- |
+| A | `@` | `LOAD_BALANCER_IP` | **DNS only** (grey cloud) |
+| A | `www` | `LOAD_BALANCER_IP` | **DNS only** (grey cloud) |
+| A | `api` | `LOAD_BALANCER_IP` | **DNS only** (grey cloud) |
+
+Use **DNS only** at least until the Google-managed certificate is `ACTIVE`; it ensures the certificate authority can reach the Google load balancer without Cloudflare proxy behavior in the way. Keep it DNS-only for the initial production launch. If Cloudflare proxying is added later, first verify that its SSL/TLS mode is **Full (strict)**, do not use Flexible mode, and re-test sign-in, CORS, API requests, certificate renewal, and caching. Never cache API responses or authenticated HTML at Cloudflare.
+
+DNS and certificate issuance can take from several minutes to several hours. Do not change the GitHub origins until all three names resolve to the new IP and the certificate status is `ACTIVE`.
+
+~~~powershell
+Resolve-DnsName bayesinstitute.com
+Resolve-DnsName www.bayesinstitute.com
+Resolve-DnsName api.bayesinstitute.com
+gcloud compute ssl-certificates describe bayes-public-cert --global --format="value(managed.status)"
+~~~
+
+### 11.5 Switch the application to its canonical origins and redeploy
+
+In GitHub **Settings â†’ Secrets and variables â†’ Actions â†’ Variables**, replace the values below exactly (no path and no trailing slash):
+
+| Variable | Value |
+| --- | --- |
+| `CLIENT_ORIGIN` | `https://www.bayesinstitute.com` |
+| `SERVER_ORIGIN` | `https://api.bayesinstitute.com` |
+
+The next production deployment embeds `SERVER_ORIGIN` in the client and sets `SERVER_ALLOWED_CLIENT_ORIGINS` in the server. Therefore, changing the variables without a new deployment is incomplete. After updating both variables, make a normal commit to `main` (or intentionally create an empty deployment-triggering commit) and allow CI followed by the `production` environment deployment to finish:
+
+~~~powershell
+git commit --allow-empty -m "chore: deploy custom domain origins"
+git push origin main
+~~~
+
+### 11.6 Verify through the new domains
+
+After the deployment completes, run the following from a public network. The first request may be slower if Cloud Run has scaled to zero; that is expected.
+
+~~~powershell
+Invoke-WebRequest "https://www.bayesinstitute.com/health"
+Invoke-WebRequest "https://api.bayesinstitute.com/health"
+Invoke-WebRequest "http://www.bayesinstitute.com/health" -MaximumRedirection 0
+~~~
+
+Expect 200 from both HTTPS health endpoints and an HTTP-to-HTTPS redirect from the final command. Then test the browser application at `https://www.bayesinstitute.com`, Firebase sign-in, a protected API request, and a CORS preflight from `https://www.bayesinstitute.com`. Confirm that API traffic goes only to `api.bayesinstitute.com` in the browser network tab.
+
+### 11.7 Lock down the direct Cloud Run URLs only after acceptance
+
+When the domain tests are passing, make the following two changes together in `.github/workflows/deploy-production.yml`:
+
+~~~text
+# In both gcloud run deploy commands:
+--ingress internal-and-cloud-load-balancing
+
+# Replace the two final smoke-test URLs:
+${CLIENT_ORIGIN}/health
+${SERVER_ORIGIN}/health
+~~~
+
+In other words, replace the existing `curl` commands that use `client_url` and `server_url` with commands that use `CLIENT_ORIGIN` and `SERVER_ORIGIN`. Commit and deploy that workflow change, then repeat the domain checks. This prevents public traffic from bypassing the ALB through the `run.app` URLs while continuing to allow the ALB to reach both services. It also keeps the smoke test valid after ingress is restricted. Keep the workflow's existing `--allow-unauthenticated`: Cloud Run IAM must remain open for ALB-forwarded browser requests, while Firebase authentication and application authorization protect the API.
+
+After this lock-down, public requests to the `run.app` URLs are expected to fail; use the custom domains for all acceptance checks. Do not disable the default Cloud Run URLs until the custom domains work reliably and the ingress lock-down has been verified. Keep the final `run.app` URLs recorded in the deployment runbook for operations and rollback troubleshooting.
 
 ## Roll back safely
 
@@ -327,6 +458,7 @@ Never roll back by overwriting a latest image tag. The SHA tag and Cloud Run rev
 
 - Both services stay at minimum zero until real latency measurements justify warming client.
 - Keep maximum instances at three until load testing demonstrates a safe reason to raise it.
+- A global external Application Load Balancer adds a standing charge even when Cloud Run is at zero instances; monitor it separately from Cloud Run request charges.
 - Build images only on main after CI passes.
 - Apply an Artifact Registry cleanup policy after a dry run.
 - Do not introduce a VPC connector, Cloud SQL, a warm instance, a server-side media proxy, or instance-based billing without a measured requirement.
@@ -342,4 +474,5 @@ Never roll back by overwriting a latest image tag. The SHA tag and Cloud Run rev
 - [ ] CI is required before merge.
 - [ ] CD deploys only SHA-tagged client and server images from main.
 - [ ] bayes-client and bayes-server are request-based, minimum zero, maximum three, and expose passing health checks.
+- [ ] `www.bayesinstitute.com` routes to the client and `api.bayesinstitute.com` routes to the server through the global external Application Load Balancer with an active managed certificate.
 - [ ] Firebase Auth, App Check, FastAPI authorization, Firestore Rules, CORS, logs, rollback, and billing alerts have been tested.
